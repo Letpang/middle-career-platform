@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react';
-import { Briefcase, GraduationCap, ArrowRight, Award, Compass, Heart, MessageCircle, UserCheck, MapPin, Phone, Clock, Building2, ExternalLink, School } from 'lucide-react';
+import { Briefcase, GraduationCap, ArrowRight, Award, Compass, Heart, MessageCircle, UserCheck, MapPin, Phone, Clock, Building2, School } from 'lucide-react';
 import type { Navigate } from '../App';
 import { fetchJobs, fetchPrograms, type Job } from '../api';
+import JobTrends, { TREND_REGIONS } from '../components/JobTrends';
+import { loadProfile } from '../lib/profile';
 import { CENTERS } from '../data/links';
 
 const Home = ({ navigate }: { navigate: Navigate }) => {
-  const [jobs, setJobs] = useState<{ loading: boolean; total: number; items: Job[]; error?: string }>({ loading: true, total: 0, items: [] });
+  // 고양·파주·김포 공고 전체 (서버가 20분간 저장해 두어 두 번째부터는 빠릅니다)
+  const [regionJobs, setRegionJobs] = useState<Record<string, Job[]> | null>(null);
+  const [jobsError, setJobsError] = useState(false);
+  const [trendRegion] = useState(() => TREND_REGIONS.find((r) => r === loadProfile()?.region) || TREND_REGIONS[0]);
   const [courseCount, setCourseCount] = useState<number | null>(null);
   const [eventCount, setEventCount] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
-    fetchJobs({ display: 3 })
-      .then((d) => alive && setJobs({ loading: false, total: d.total, items: d.items }))
-      .catch((e) => alive && setJobs({ loading: false, total: 0, items: [], error: e.message }));
+    Promise.all(TREND_REGIONS.map((r) => fetchJobs({ region: r }).then((d) => [r, d.items] as const)))
+      .then((entries) => alive && setRegionJobs(Object.fromEntries(entries)))
+      .catch(() => alive && setJobsError(true));
     fetchPrograms('course')
       .then((d) => alive && setCourseCount(d.items.length))
       .catch(() => {});
@@ -80,47 +85,8 @@ const Home = ({ navigate }: { navigate: Navigate }) => {
         </div>
       </section>
 
-      {/* Latest jobs */}
-      {!jobs.error && (jobs.loading || jobs.items.length > 0) && (
-        <section style={{ padding: '20px 0 60px' }}>
-          <div className="container">
-            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-              <h2 className="section-title">지금 새로 올라온 채용공고</h2>
-              <p className="section-desc">고용24 오픈API로 실시간 연동된 최신 채용정보입니다</p>
-            </div>
-            {jobs.loading ? (
-              <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>채용정보를 불러오는 중입니다...</p>
-            ) : (
-              <div className="grid">
-                {jobs.items.map((j) => (
-                  <div className="card" key={j.id}>
-                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                      <span className="badge badge-secondary">{j.type}</span>
-                    </div>
-                    <h3 style={{ fontSize: '1.1rem' }}>{j.title}</h3>
-                    <p style={{ fontWeight: 600, color: 'var(--primary)', marginBottom: '8px', flexGrow: 0 }}>{j.company}</p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '12px' }}>
-                      <MapPin size={14} />
-                      <span>{j.location}</span>
-                    </div>
-                    <p style={{ fontSize: '0.9rem', marginBottom: '16px' }}>{j.salary}</p>
-                    {j.url && (
-                      <a href={j.url} target="_blank" rel="noopener noreferrer" className="card-link" style={{ alignSelf: 'flex-start' }}>
-                        고용24에서 보기 <ExternalLink size={16} />
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div style={{ textAlign: 'center', marginTop: '-28px' }}>
-              <button className="btn btn-secondary" onClick={() => navigate('jobs')}>
-                전체 일자리 보기 <ArrowRight size={18} />
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
+      {/* 지금 많이 찾는 일자리 (인디드 '최신 트렌드'처럼 한 번에 조건별 목록으로) */}
+      <JobTrends data={regionJobs} error={jobsError} initialRegion={trendRegion} navigate={navigate} />
 
       {/* Centers */}
       <section style={{ padding: '20px 0 60px' }}>
@@ -204,7 +170,7 @@ const Home = ({ navigate }: { navigate: Navigate }) => {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>채용 중 일자리 (고용24 실시간)</span>
-                <span className="badge badge-secondary">{jobs.loading ? '불러오는 중...' : jobs.error ? '정보 준비중' : `${jobs.total.toLocaleString()}개 채용공고`}</span>
+                <span className="badge badge-secondary">{jobsError ? '정보 준비중' : !regionJobs ? '불러오는 중...' : `고양·파주·김포 ${Object.values(regionJobs).reduce((n, l) => n + l.length, 0).toLocaleString()}건`}</span>
               </div>
               <button className="btn btn-primary" style={{ width: '100%', marginTop: '10px' }} onClick={() => navigate('counseling')}>
                 지금 상담 신청하기

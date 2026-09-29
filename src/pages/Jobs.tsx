@@ -1,76 +1,52 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Search, MapPin, Funnel, RefreshCw, ExternalLink, CalendarDays, Briefcase, X } from 'lucide-react';
 import type { Navigate } from '../App';
 import { fetchJobs, fetchPrograms, type Job, type Program } from '../api';
-import { classifyJob, groupByCategory, isCareerFree, isEducationFree, titleTags, daysLeft } from '../data/jobs';
+import { classifyJob, countBy, groupByCategory, jobArea, JOB_FILTERS, matchesQuery, parseFilters, type JobFilterKey } from '../data/jobs';
 import { EVENT_SITES, JOB_SITES } from '../data/links';
+import { loadProfile } from '../lib/profile';
 import JobCard from '../components/JobCard';
 import EventCalendar from '../components/EventCalendar';
 import { LinkCard, LinkGroups } from '../components/LinkCards';
 
-const REGIONS = ['전체', '고양', '파주', '김포'];
+const REGIONS = ['고양', '파주', '김포'];
 const PAGE = 20;
 
 const Jobs = (_: { navigate: Navigate }) => {
   const initial = useMemo(() => new URLSearchParams(window.location.search), []);
-  const [region, setRegion] = useState<string>(() => (REGIONS.includes(initial.get('region') || '') ? initial.get('region')! : '전체'));
+  // 주소에 지역이 있으면 그 지역, 없으면 프로필의 희망 지역, 그것도 없으면 고양
+  const [region, setRegion] = useState<string>(() => [initial.get('region'), loadProfile()?.region].find((r): r is string => !!r && REGIONS.includes(r)) || REGIONS[0]);
   const [query, setQuery] = useState<string>(initial.get('keyword') || '');
   const [category, setCategory] = useState<string>(initial.get('category') || '전체');
   const [workType, setWorkType] = useState('전체');
-  const [careerFree, setCareerFree] = useState(false);
-  const [eduFree, setEduFree] = useState(false);
-  const [noShift, setNoShift] = useState(false);
-  const [hideClosing, setHideClosing] = useState(false);
+  const [filters, setFilters] = useState<JobFilterKey[]>(() => parseFilters(initial.get('filter')));
+  const toggleFilter = (key: JobFilterKey, on: boolean) => setFilters((fs) => (on ? [...fs.filter((k) => k !== key), key] : fs.filter((k) => k !== key)));
 
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string>();
-  const [page, setPage] = useState(1); // 전체 지역: 서버 페이지
-  const [shown, setShown] = useState(PAGE); // 지역: 화면에 보여줄 개수
+  const [shown, setShown] = useState(PAGE); // 화면에 보여줄 개수
 
   const [events, setEvents] = useState<Program[]>([]);
   const [eventRegion, setEventRegion] = useState('전체');
 
-  const isRegion = region !== '전체';
-  const firstRun = useRef(true);
-
-  const load = (opts: { region: string; keyword: string }) => {
+  // 지역 공고를 모두 불러온 뒤, 검색어와 조건은 화면에서 바로 거릅니다.
+  const load = (r: string) => {
     setLoading(true);
     setError(undefined);
-    setPage(1);
     setShown(PAGE);
-    fetchJobs(opts.region !== '전체' ? { region: opts.region } : { keyword: opts.keyword || undefined, display: 50 })
-      .then((d) => {
-        setJobs(d.items);
-        setTotal(d.total);
-      })
+    fetchJobs({ region: r })
+      .then((d) => setJobs(d.items))
       .catch((e) => {
         setError(e.message);
         setJobs([]);
-        setTotal(0);
       })
       .finally(() => setLoading(false));
   };
 
-  // 지역이 바뀌면 다시 불러오기
   useEffect(() => {
-    load({ region, keyword: query.trim() });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    load(region);
   }, [region]);
-
-  // 전체 지역일 때만 검색어를 서버(고용24)로 보냅니다. 지역 선택 시에는 불러온 공고 안에서 바로 거릅니다.
-  useEffect(() => {
-    if (firstRun.current) {
-      firstRun.current = false;
-      return;
-    }
-    if (isRegion) return;
-    const t = setTimeout(() => load({ region, keyword: query.trim() }), 500);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
 
   useEffect(() => {
     fetchPrograms('event')
@@ -78,57 +54,43 @@ const Jobs = (_: { navigate: Navigate }) => {
       .catch(() => setEvents([]));
   }, []);
 
-  const loadMore = async () => {
-    if (isRegion) {
-      setShown((s) => s + PAGE);
-      return;
-    }
-    setLoadingMore(true);
-    try {
-      const d = await fetchJobs({ keyword: query.trim() || undefined, display: 50, startPage: page + 1 });
-      setJobs((prev) => [...prev, ...d.items.filter((j) => !prev.some((p) => p.id === j.id))]);
-      setPage((p) => p + 1);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '더 불러오지 못했습니다.');
-    } finally {
-      setLoadingMore(false);
-    }
-  };
 
   const categories = useMemo(() => groupByCategory(jobs), [jobs]);
   const workTypes = useMemo(() => ['전체', ...Array.from(new Set(jobs.map((j) => j.type).filter(Boolean)))], [jobs]);
 
   const filtered = useMemo(() => {
-    const words = isRegion ? query.trim().toLowerCase().split(/\s+/).filter(Boolean) : [];
-    return jobs.filter((j) => {
-      if (category !== '전체' && classifyJob(j.title) !== category) return false;
-      if (workType !== '전체' && j.type !== workType) return false;
-      if (careerFree && !isCareerFree(j)) return false;
-      if (eduFree && !isEducationFree(j)) return false;
-      if (noShift && titleTags(j.title).some((t) => ['3교대', '2교대', '격일제', '교대근무', '야간'].includes(t.label))) return false;
-      if (hideClosing) {
-        const left = daysLeft(j.closingDate);
-        if (left !== null && left <= 3) return false;
-      }
-      if (words.length) {
-        const hay = `${j.title} ${j.company} ${j.location} ${j.address || ''} ${j.salary} ${j.type}`.toLowerCase();
-        if (!words.every((w) => hay.includes(w))) return false;
-      }
-      return true;
-    });
-  }, [jobs, category, workType, careerFree, eduFree, noShift, hideClosing, query, isRegion]);
+    const tests = JOB_FILTERS.filter((f) => filters.includes(f.key)).map((f) => f.test);
+    return jobs.filter(
+      (j) =>
+        (category === '전체' || classifyJob(j.title) === category) &&
+        (workType === '전체' || j.type === workType) &&
+        tests.every((t) => t(j)) &&
+        matchesQuery(j, query),
+    );
+  }, [jobs, category, workType, filters, query]);
 
-  const visible = isRegion ? filtered.slice(0, shown) : filtered;
-  const canLoadMore = isRegion ? filtered.length > shown : jobs.length < total;
-  const activeFilters = [category !== '전체', workType !== '전체', careerFree, eduFree, noShift, hideClosing].filter(Boolean).length;
+  // 좁혀 보기: 지금 결과 안에서 동네·조건별로 몇 건씩인지. 결과를 눈에 띄게 줄여 주는 것만 보여 줍니다(90% 이하).
+  const narrow = useMemo(() => {
+    const useful = (c: { count: number }) => c.count > 0 && c.count <= filtered.length * 0.9;
+    const areas = countBy(filtered, jobArea)
+      .filter((a) => !query.includes(a.name))
+      .slice(0, 5)
+      .map((a) => ({ label: a.name, count: filtered.filter((j) => matchesQuery(j, a.name)).length, apply: () => setQuery((q) => `${q.trim()} ${a.name}`.trim()) }))
+      .filter(useful);
+    const conds = JOB_FILTERS.filter((f) => f.key !== 'closing' && !filters.includes(f.key))
+      .map((f) => ({ label: f.label, count: filtered.filter(f.test).length, apply: () => toggleFilter(f.key, true) }))
+      .filter(useful);
+    return [...areas, ...conds];
+  }, [filtered, filters, query]);
+
+  const visible = filtered.slice(0, shown);
+  const canLoadMore = filtered.length > shown;
+  const activeFilters = [category !== '전체', workType !== '전체'].filter(Boolean).length + filters.length;
 
   const resetFilters = () => {
     setCategory('전체');
     setWorkType('전체');
-    setCareerFree(false);
-    setEduFree(false);
-    setNoShift(false);
-    setHideClosing(false);
+    setFilters([]);
   };
 
   const eventsShown = eventRegion === '전체' ? events : events.filter((e) => !e.region || e.region.includes(eventRegion));
@@ -139,8 +101,7 @@ const Jobs = (_: { navigate: Navigate }) => {
         <div className="container">
           <h1 className="page-title">중장년 맞춤 일자리</h1>
           <p className="page-subtitle">
-            고용24와 실시간으로 연결된 채용정보입니다. 회원가입 없이 핵심 조건을 바로 비교하고, 고양·파주·김포 지역 일자리도 직종별로 찾아보세요.
-            {!loading && !error && total > 0 && <> (전체 {total.toLocaleString()}건)</>}
+            고용24와 실시간으로 연결된 고양·파주·김포 채용정보입니다. 회원가입 없이 핵심 조건을 바로 비교하고 직종별로 찾아보세요.
           </p>
         </div>
       </div>
@@ -163,7 +124,7 @@ const Jobs = (_: { navigate: Navigate }) => {
             <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
             <input
               type="text"
-              placeholder={isRegion ? `${region} 공고 안에서 직무명, 회사명, 동네 이름으로 찾기 (예: 사무직, 금촌동)` : '직무명, 기업명, 지역을 검색하세요 (예: 경비, 요양보호사)'}
+              placeholder={`${region} 공고 안에서 직무명, 회사명, 동네 이름으로 찾기 (예: 사무직, 금촌동)`}
               style={{ width: '100%', paddingLeft: '40px', paddingRight: query ? '40px' : undefined }}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -201,18 +162,11 @@ const Jobs = (_: { navigate: Navigate }) => {
                 </option>
               ))}
             </select>
-            <label className="check-toggle">
-              <input type="checkbox" checked={careerFree} onChange={(e) => setCareerFree(e.target.checked)} /> 경력 무관
-            </label>
-            <label className="check-toggle">
-              <input type="checkbox" checked={eduFree} onChange={(e) => setEduFree(e.target.checked)} /> 학력 무관
-            </label>
-            <label className="check-toggle">
-              <input type="checkbox" checked={noShift} onChange={(e) => setNoShift(e.target.checked)} /> 교대·야간 제외
-            </label>
-            <label className="check-toggle">
-              <input type="checkbox" checked={hideClosing} onChange={(e) => setHideClosing(e.target.checked)} /> 마감 임박(3일 이내) 제외
-            </label>
+            {JOB_FILTERS.map((f) => (
+              <label key={f.key} className="check-toggle">
+                <input type="checkbox" checked={filters.includes(f.key)} onChange={(e) => toggleFilter(f.key, e.target.checked)} /> {f.label}
+              </label>
+            ))}
             {activeFilters > 0 && (
               <button className="link-btn" onClick={resetFilters}>
                 조건 초기화
@@ -221,9 +175,7 @@ const Jobs = (_: { navigate: Navigate }) => {
           </div>
 
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            {isRegion
-              ? `'${region}' 지역 공고 ${jobs.length.toLocaleString()}건을 모두 불러왔어요. 검색어와 조건은 바로 적용됩니다.`
-              : '검색어를 입력하면 고용24 전국 공고에서 찾아 드려요. 우리 지역만 보려면 위에서 지역을 눌러 주세요.'}{' '}
+            {`'${region}' 지역 공고 ${jobs.length.toLocaleString()}건을 모두 불러왔어요. 검색어와 조건은 바로 적용됩니다.`}{' '}
             직종은 공고 제목으로 자동 분류되어 일부 다를 수 있어요.
           </p>
         </div>
@@ -240,7 +192,7 @@ const Jobs = (_: { navigate: Navigate }) => {
               고용24 서버가 잠시 바쁠 때 생기는 문제로, 잠시 후 다시 시도하면 대부분 해결됩니다.
             </p>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button className="btn btn-primary" onClick={() => load({ region, keyword: query.trim() })}>
+              <button className="btn btn-primary" onClick={() => load(region)}>
                 <RefreshCw size={16} /> 다시 시도
               </button>
               <a className="btn btn-secondary" href="https://www.work24.go.kr/" target="_blank" rel="noopener noreferrer">
@@ -254,8 +206,17 @@ const Jobs = (_: { navigate: Navigate }) => {
           <>
             <p style={{ fontWeight: 600, marginBottom: '14px' }}>
               조건에 맞는 공고 <span style={{ color: 'var(--primary)' }}>{filtered.length.toLocaleString()}건</span>
-              {!isRegion && jobs.length < total && <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.85rem' }}> (지금까지 불러온 {jobs.length}건 기준)</span>}
             </p>
+            {narrow.length > 0 && (
+              <div className="filter-row" style={{ marginBottom: '18px' }}>
+                <span className="filter-label">좁혀 보기</span>
+                {narrow.map((c) => (
+                  <button key={c.label} className="filter-btn" onClick={c.apply}>
+                    {c.label} <span style={{ opacity: 0.75 }}>{c.count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             {visible.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 {visible.map((job) => (
@@ -274,8 +235,8 @@ const Jobs = (_: { navigate: Navigate }) => {
             )}
             {canLoadMore && (
               <div style={{ textAlign: 'center', marginTop: '24px' }}>
-                <button className="btn btn-secondary" onClick={loadMore} disabled={loadingMore}>
-                  {loadingMore ? '불러오는 중...' : '공고 더 보기'}
+                <button className="btn btn-secondary" onClick={() => setShown((s) => s + PAGE)}>
+                  공고 더 보기
                 </button>
               </div>
             )}

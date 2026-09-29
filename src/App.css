@@ -690,6 +690,54 @@
   font-size: 0.8rem;
 }
 
+/* 메인 "지금 많이 찾는 일자리" */
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 20px;
+}
+
+.trend-col {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.trend-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--text-primary);
+}
+
+.trend-col ul {
+  list-style: none;
+}
+
+.trend-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 4px;
+  border-bottom: 1px dashed var(--border-color);
+  font-size: 0.95rem;
+  color: var(--primary);
+  text-align: left;
+}
+
+.trend-link:hover span:first-child {
+  text-decoration: underline;
+}
+
+.trend-count {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .hero {
