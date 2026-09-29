@@ -81,8 +81,20 @@ const Education = ({ navigate }: { navigate: Navigate }) => {
           </button>
         </div>
 
+        {/* 지역 교육기관 */}
+        <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px' }}>지역 평생교육·직업훈련 기관 바로가기</h2>
+        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>시청 평생학습 포털과 관내 대학 평생교육원, 직업훈련기관으로 바로 연결됩니다.</p>
+        <div className="filter-row" style={{ marginBottom: '20px' }}>
+          {['전체', '고양', '파주', '김포', '서울'].map((r) => (
+            <button key={r} className={`filter-btn ${siteRegion === r ? 'active' : ''}`} onClick={() => setSiteRegion(r)}>
+              {r === '서울' ? '서울 강서' : r}
+            </button>
+          ))}
+        </div>
+        <LinkGroups groups={sites} />
+
         {/* 기관 등록 교육과정 */}
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '14px' }}>기관이 등록한 교육과정</h2>
+        <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginTop: '56px', marginBottom: '14px' }}>기관이 등록한 교육과정</h2>
         <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
           <div style={{ position: 'relative' }}>
             <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
@@ -142,23 +154,11 @@ const Education = ({ navigate }: { navigate: Navigate }) => {
                 <p style={{ color: 'var(--text-muted)', marginBottom: '8px' }}>
                   {courses.length === 0 ? '아직 등록된 교육과정이 없습니다.' : '조건에 맞는 교육과정이 없습니다. 조건을 바꿔 보세요.'}
                 </p>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>아래 지역 교육기관 사이트에서도 과정을 확인하실 수 있어요.</p>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>위 지역 교육기관 사이트에서도 과정을 확인하실 수 있어요.</p>
               </div>
             )}
           </>
         )}
-
-        {/* 지역 교육기관 */}
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px' }}>지역 평생교육·직업훈련 기관 바로가기</h2>
-        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>시청 평생학습 포털과 관내 대학 평생교육원, 직업훈련기관으로 바로 연결됩니다.</p>
-        <div className="filter-row" style={{ marginBottom: '20px' }}>
-          {['전체', '고양', '파주', '김포', '서울'].map((r) => (
-            <button key={r} className={`filter-btn ${siteRegion === r ? 'active' : ''}`} onClick={() => setSiteRegion(r)}>
-              {r === '서울' ? '서울 강서' : r}
-            </button>
-          ))}
-        </div>
-        <LinkGroups groups={sites} />
 
         <div className="notice" style={{ marginTop: '40px' }}>
           <School size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
