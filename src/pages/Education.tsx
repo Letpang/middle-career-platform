@@ -64,10 +64,15 @@ const Education = ({ navigate }: { navigate: Navigate }) => {
               <Compass size={24} />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '6px' }}>인생 2막 설계부터 시작해 보세요 — 중장년 생애경력설계·재도약 지원</h2>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '6px' }}>인생 2막 설계부터 시작해 보세요 — 중장년 <span className="nowrap">생애경력설계·재도약</span> 지원</h2>
               <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
                 중장년내일센터에서는 지난 경력을 돌아보고 앞으로의 일과 삶을 함께 설계하는 생애경력설계 프로그램과 재도약 교육을 무료로 운영합니다.
-                {CENTERS.map((c) => ` ${c.region} ${c.phone}`).join(' ·')}
+                {CENTERS.map((c, i) => (
+                  <span key={c.region}>
+                    {i > 0 ? ' · ' : ' '}
+                    {c.region} <a className="nowrap" href={`tel:${c.phone}`}>{c.phone}</a>
+                  </span>
+                ))}
               </p>
             </div>
           </div>
