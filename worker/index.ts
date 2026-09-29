@@ -378,7 +378,7 @@ async function askGemini(apiKey: string, messages: ChatMessage[]): Promise<strin
   return (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
 }
 
-// GOOGLE_API_KEY가 없으면 Cloudflare Workers AI 사용
+// GOOGLE_API_KEY가 없거나 Gemini가 실패하면 Cloudflare Workers AI 사용
 async function askWorkersAi(env: Env, messages: ChatMessage[]): Promise<string> {
   const ai = env.AI as unknown as { run: (model: string, input: unknown) => Promise<{ response?: string }> };
   const out = await ai.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', { messages, max_tokens: 500 });
@@ -398,8 +398,18 @@ async function chat(env: Env, req: Request) {
     }
   }
   messages.push({ role: 'user', content: message });
+  // Gemini는 요청을 처리한 Cloudflare 데이터센터 위치에 따라 "User location is not supported"(HTTP 400)로
+  // 거절하는 경우가 있습니다. 같은 위치에서 다시 요청해도 실패하므로 바로 Workers AI로 넘깁니다.
+  let reply = '';
+  if (env.GOOGLE_API_KEY) {
+    try {
+      reply = await askGemini(env.GOOGLE_API_KEY, messages);
+    } catch (e) {
+      console.warn('gemini failed, falling back to Workers AI', e);
+    }
+  }
   try {
-    const reply = env.GOOGLE_API_KEY ? await askGemini(env.GOOGLE_API_KEY, messages) : await askWorkersAi(env, messages);
+    if (!reply.trim()) reply = await askWorkersAi(env, messages);
     return json({ reply: reply.trim() || '죄송합니다. 다시 한 번 질문해 주세요.' });
   } catch (e) {
     console.error('chat failed', e);
