@@ -1,107 +1,137 @@
-import React, { useState } from 'react';
-import { Search, MapPin, DollarSign, Filter } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Search, MapPin, Funnel, RefreshCw, ExternalLink, CalendarDays, Briefcase, X } from 'lucide-react';
+import type { Navigate } from '../App';
+import { fetchJobs, fetchPrograms, type Job, type Program } from '../api';
+import { classifyJob, groupByCategory, isCareerFree, isEducationFree, titleTags, daysLeft } from '../data/jobs';
+import { EVENT_SITES, JOB_SITES } from '../data/links';
+import JobCard from '../components/JobCard';
+import EventCalendar from '../components/EventCalendar';
+import { LinkCard, LinkGroups } from '../components/LinkCards';
 
-interface Job {
-  id: number;
-  title: string;
-  company: string;
-  location: string;
-  salary: string;
-  type: string;
-  tags: string[];
-  posted: string;
-  description: string;
-  requirements: string;
-}
+const REGIONS = ['전체', '고양', '파주', '김포'];
+const PAGE = 20;
 
-const Jobs: React.FC = () => {
-  const [selectedType, setSelectedType] = useState<string>('전체');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+const Jobs = (_: { navigate: Navigate }) => {
+  const initial = useMemo(() => new URLSearchParams(window.location.search), []);
+  const [region, setRegion] = useState<string>(() => (REGIONS.includes(initial.get('region') || '') ? initial.get('region')! : '전체'));
+  const [query, setQuery] = useState<string>(initial.get('keyword') || '');
+  const [category, setCategory] = useState<string>(initial.get('category') || '전체');
+  const [workType, setWorkType] = useState('전체');
+  const [careerFree, setCareerFree] = useState(false);
+  const [eduFree, setEduFree] = useState(false);
+  const [noShift, setNoShift] = useState(false);
+  const [hideClosing, setHideClosing] = useState(false);
 
-  const jobTypes = ['전체', '정규직/전문직', '파트타임/알바', '시니어 인턴', '공공/공익형'];
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string>();
+  const [page, setPage] = useState(1); // 전체 지역: 서버 페이지
+  const [shown, setShown] = useState(PAGE); // 지역: 화면에 보여줄 개수
 
-  const jobs: Job[] = [
-    {
-      id: 1,
-      title: '시니어 은퇴 경영인 경영 자문 컨설턴트 모집',
-      company: '㈜위드컨설팅그룹',
-      location: '서울 강남구 (재택병행)',
-      salary: '월 350만원 ~ (경력별 협의)',
-      type: '정규직/전문직',
-      tags: ['경력 15년 이상', '주 3일 가능', '은퇴자 우대'],
-      posted: '오늘 등록',
-      description: '중소기업 및 스타트업 경영 관리, 마케팅, 재무 자문을 제공하실 대기업/공공기관 퇴직 간부 및 임원 출신 전문가를 모십니다.',
-      requirements: '기업 경영 관리 또는 자문 분야 경력 15년 이상 소지자'
-    },
-    {
-      id: 2,
-      title: '지역 도서관 시니어 도서 문화 매니저',
-      company: '행복교육문화재단',
-      location: '경기 성남시',
-      salary: '시급 11,500원',
-      type: '파트타임/알바',
-      tags: ['주 5일', '일 4시간', '초보 가능'],
-      posted: '2일 전',
-      description: '지역 구립 도서관에서 아동 도서 정리, 독서 프로그램 보조 및 도서 대출/반납 서비스를 조율하고 관리하는 업무입니다.',
-      requirements: '친절한 고객 서비스 마인드 소유자, 성실하고 책임감 강하신 분'
-    },
-    {
-      id: 3,
-      title: '스마트스토어 운영 및 CS 고객관리 시니어 파트너',
-      company: '디지털커머스랩',
-      location: '서울 마포구',
-      salary: '월 180만원 (주 30시간)',
-      type: '시니어 인턴',
-      tags: ['디지털 교육 이수자 우대', '컴퓨터 활용 가능'],
-      posted: '3일 전',
-      description: '쇼핑몰 고객 문의 응대(게시판, 톡톡), 송장 출력 및 주문 접수 관리 업무를 담당할 시니어 디지털 인재를 채용합니다.',
-      requirements: '스마트폰 및 PC를 통한 인터넷 쇼핑몰 어드민 사용 가능자'
-    },
-    {
-      id: 4,
-      title: '지역 아동 안심 등하교 지도 요원',
-      company: '우리동네 안전지킴이',
-      location: '인천 연수구',
-      salary: '월 90만원',
-      type: '공공/공익형',
-      tags: ['주 5일', '일 3시간', '신체 건강한 분'],
-      posted: '1주 전',
-      description: '초등학교 주변 횡단보도 및 어린이 보호구역에서 아침 등교 및 오후 하교 시간 교통 안전을 지도하고 예방 순찰을 돕습니다.',
-      requirements: '신체 건강하며 아이들을 사랑하고 책임감 있는 60세 이상 누구나'
-    },
-    {
-      id: 5,
-      title: '시니어 아파트 관리 및 시설 보안 대원',
-      company: '㈜제일종합관리',
-      location: '경기 용인시',
-      salary: '월 240만원 (격일 교대)',
-      type: '정규직/전문직',
-      tags: ['경비지도사 소지자 우대', '신체 건강'],
-      posted: '5일 전',
-      description: '신축 단지 내 차량 관리, 시설 안전 순찰 및 방문객 안내를 처리하는 경비/보안직 직무입니다.',
-      requirements: '경비 신임 교육 이수자 필수 (미이수 시 교육 지원 가능)'
-    },
-    {
-      id: 6,
-      title: '디지털 배움터 정보화 보조 강사',
-      company: '서울시 디지털 교육 추진단',
-      location: '서울 전역',
-      salary: '시간당 15,000원',
-      type: '공공/공익형',
-      tags: ['IT 자격증 소지자', '디지털 강사 경험자'],
-      posted: '1일 전',
-      description: '복지관 및 주민센터 디지털 배움터에서 키오스크 교육, 스마트폰 활용 교육 등 주강사를 도와 보조 및 실습 지도를 담당합니다.',
-      requirements: '컴퓨터/스마트폰 활용 중급 이상 및 관련 자격 소지자 우대'
+  const [events, setEvents] = useState<Program[]>([]);
+  const [eventRegion, setEventRegion] = useState('전체');
+
+  const isRegion = region !== '전체';
+  const firstRun = useRef(true);
+
+  const load = (opts: { region: string; keyword: string }) => {
+    setLoading(true);
+    setError(undefined);
+    setPage(1);
+    setShown(PAGE);
+    fetchJobs(opts.region !== '전체' ? { region: opts.region } : { keyword: opts.keyword || undefined, display: 50 })
+      .then((d) => {
+        setJobs(d.items);
+        setTotal(d.total);
+      })
+      .catch((e) => {
+        setError(e.message);
+        setJobs([]);
+        setTotal(0);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  // 지역이 바뀌면 다시 불러오기
+  useEffect(() => {
+    load({ region, keyword: query.trim() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [region]);
+
+  // 전체 지역일 때만 검색어를 서버(고용24)로 보냅니다. 지역 선택 시에는 불러온 공고 안에서 바로 거릅니다.
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
     }
-  ];
+    if (isRegion) return;
+    const t = setTimeout(() => load({ region, keyword: query.trim() }), 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
-  const filteredJobs = jobs.filter(job => {
-    const matchesType = selectedType === '전체' || job.type === selectedType;
-    const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          job.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesType && matchesSearch;
-  });
+  useEffect(() => {
+    fetchPrograms('event')
+      .then((d) => setEvents(d.items))
+      .catch(() => setEvents([]));
+  }, []);
+
+  const loadMore = async () => {
+    if (isRegion) {
+      setShown((s) => s + PAGE);
+      return;
+    }
+    setLoadingMore(true);
+    try {
+      const d = await fetchJobs({ keyword: query.trim() || undefined, display: 50, startPage: page + 1 });
+      setJobs((prev) => [...prev, ...d.items.filter((j) => !prev.some((p) => p.id === j.id))]);
+      setPage((p) => p + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '더 불러오지 못했습니다.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const categories = useMemo(() => groupByCategory(jobs), [jobs]);
+  const workTypes = useMemo(() => ['전체', ...Array.from(new Set(jobs.map((j) => j.type).filter(Boolean)))], [jobs]);
+
+  const filtered = useMemo(() => {
+    const words = isRegion ? query.trim().toLowerCase().split(/\s+/).filter(Boolean) : [];
+    return jobs.filter((j) => {
+      if (category !== '전체' && classifyJob(j.title) !== category) return false;
+      if (workType !== '전체' && j.type !== workType) return false;
+      if (careerFree && !isCareerFree(j)) return false;
+      if (eduFree && !isEducationFree(j)) return false;
+      if (noShift && titleTags(j.title).some((t) => ['3교대', '2교대', '격일제', '교대근무', '야간'].includes(t.label))) return false;
+      if (hideClosing) {
+        const left = daysLeft(j.closingDate);
+        if (left !== null && left <= 3) return false;
+      }
+      if (words.length) {
+        const hay = `${j.title} ${j.company} ${j.location} ${j.address || ''} ${j.salary} ${j.type}`.toLowerCase();
+        if (!words.every((w) => hay.includes(w))) return false;
+      }
+      return true;
+    });
+  }, [jobs, category, workType, careerFree, eduFree, noShift, hideClosing, query, isRegion]);
+
+  const visible = isRegion ? filtered.slice(0, shown) : filtered;
+  const canLoadMore = isRegion ? filtered.length > shown : jobs.length < total;
+  const activeFilters = [category !== '전체', workType !== '전체', careerFree, eduFree, noShift, hideClosing].filter(Boolean).length;
+
+  const resetFilters = () => {
+    setCategory('전체');
+    setWorkType('전체');
+    setCareerFree(false);
+    setEduFree(false);
+    setNoShift(false);
+    setHideClosing(false);
+  };
+
+  const eventsShown = eventRegion === '전체' ? events : events.filter((e) => !e.region || e.region.includes(eventRegion));
 
   return (
     <div className="fade-in">
@@ -109,140 +139,184 @@ const Jobs: React.FC = () => {
         <div className="container">
           <h1 className="page-title">중장년 맞춤 일자리</h1>
           <p className="page-subtitle">
-            단순 업무부터 과거의 커리어 역량을 발휘할 수 있는 전문적인 일자리까지, 오랜 노하우를 발휘할 최적의 직무를 찾아드립니다.
+            고용24와 실시간으로 연결된 채용정보입니다. 회원가입 없이 핵심 조건을 바로 비교하고, 고양·파주·김포 지역 일자리도 직종별로 찾아보세요.
+            {!loading && !error && total > 0 && <> (전체 {total.toLocaleString()}건)</>}
           </p>
         </div>
       </div>
 
       <div className="container" style={{ paddingBottom: '80px' }}>
-        {/* Search and Filter Section */}
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '20px', 
-          marginBottom: '40px',
-          backgroundColor: 'var(--bg-secondary)', 
-          padding: '24px', 
-          borderRadius: '16px',
-          border: '1px solid var(--border-color)',
-          boxShadow: 'var(--card-shadow)'
-        }}>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative', flex: '1 1 300px' }}>
-              <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
-              <input 
-                type="text" 
-                placeholder="직무명, 기업명, 키워드를 검색하세요..." 
-                style={{ width: '100%', paddingLeft: '40px' }}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <Filter size={18} style={{ color: 'var(--text-secondary)', marginRight: '4px' }} />
-              {jobTypes.map(type => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedType(type)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    fontSize: '0.9rem',
-                    fontWeight: '500',
-                    backgroundColor: selectedType === type ? 'var(--primary)' : 'var(--bg-tertiary)',
-                    color: selectedType === type ? '#ffffff' : 'var(--text-secondary)',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Jobs List */}
-        {filteredJobs.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {filteredJobs.map(job => (
-              <div 
-                className="card" 
-                key={job.id} 
-                style={{ 
-                  flexDirection: 'row', 
-                  flexWrap: 'wrap', 
-                  gap: '24px', 
-                  alignItems: 'flex-start',
-                  padding: '24px 30px'
-                }}
-              >
-                {/* Job Core Details */}
-                <div style={{ flex: '2 1 500px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                    <span className="badge badge-secondary">{job.type}</span>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{job.posted}</span>
-                  </div>
-                  <h3 style={{ fontSize: '1.3rem', marginBottom: '6px', color: 'var(--text-primary)' }}>{job.title}</h3>
-                  <p style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--primary)', marginBottom: '12px' }}>{job.company}</p>
-                  
-                  <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>{job.description}</p>
-                  
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                    {job.tags.map((tag, idx) => (
-                      <span 
-                        key={idx} 
-                        className="badge" 
-                        style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontSize: '0.8rem' }}
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Requirements and Compensation */}
-                <div style={{ 
-                  flex: '1 1 250px', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '16px', 
-                  borderLeft: '1px solid var(--border-color)',
-                  paddingLeft: '24px',
-                  minHeight: '130px',
-                  justifyContent: 'space-between'
-                }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <MapPin size={16} style={{ color: 'var(--text-muted)' }} />
-                      <span style={{ color: 'var(--text-secondary)' }}>{job.location}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <DollarSign size={16} style={{ color: 'var(--success)' }} />
-                      <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>{job.salary}</span>
-                    </div>
-                  </div>
-
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    <strong>지원 자격:</strong> {job.requirements}
-                  </div>
-
-                  <button 
-                    className="btn btn-primary" 
-                    style={{ width: '100%' }}
-                    onClick={() => alert(`"${job.title}" 공고에 지원 절차를 안내해 드립니다. 프로필(이력서)을 최신화해 주세요!`)}
-                  >
-                    지원하기
-                  </button>
-                </div>
-              </div>
+        {/* 검색 · 필터 */}
+        <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '28px' }}>
+          <div className="filter-row">
+            <span className="filter-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <MapPin size={16} /> 지역
+            </span>
+            {REGIONS.map((r) => (
+              <button key={r} className={`filter-btn ${region === r ? 'active' : ''}`} onClick={() => setRegion(r)}>
+                {r}
+              </button>
             ))}
           </div>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>해당 조건에 맞는 일자리 공고가 존재하지 않습니다. 다른 검색어로 시도해 보세요.</p>
+
+          <div style={{ position: 'relative' }}>
+            <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
+            <input
+              type="text"
+              placeholder={isRegion ? `${region} 공고 안에서 직무명, 회사명, 동네 이름으로 찾기 (예: 사무직, 금촌동)` : '직무명, 기업명, 지역을 검색하세요 (예: 경비, 요양보호사)'}
+              style={{ width: '100%', paddingLeft: '40px', paddingRight: query ? '40px' : undefined }}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="채용공고 검색"
+            />
+            {query && (
+              <button onClick={() => setQuery('')} aria-label="검색어 지우기" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex' }}>
+                <X size={18} />
+              </button>
+            )}
+          </div>
+
+          <div className="filter-row">
+            <span className="filter-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Briefcase size={16} /> 직종
+            </span>
+            <button className={`filter-btn ${category === '전체' ? 'active' : ''}`} onClick={() => setCategory('전체')}>
+              전체
+            </button>
+            {categories.map((c) => (
+              <button key={c.name} className={`filter-btn ${category === c.name ? 'active' : ''}`} onClick={() => setCategory(c.name)}>
+                {c.name} <span style={{ opacity: 0.75 }}>{c.count}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="filter-row">
+            <span className="filter-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Funnel size={16} /> 조건
+            </span>
+            <select value={workType} onChange={(e) => setWorkType(e.target.value)} aria-label="근무형태" style={{ padding: '8px 12px' }}>
+              {workTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t === '전체' ? '근무형태 전체' : t}
+                </option>
+              ))}
+            </select>
+            <label className="check-toggle">
+              <input type="checkbox" checked={careerFree} onChange={(e) => setCareerFree(e.target.checked)} /> 경력 무관
+            </label>
+            <label className="check-toggle">
+              <input type="checkbox" checked={eduFree} onChange={(e) => setEduFree(e.target.checked)} /> 학력 무관
+            </label>
+            <label className="check-toggle">
+              <input type="checkbox" checked={noShift} onChange={(e) => setNoShift(e.target.checked)} /> 교대·야간 제외
+            </label>
+            <label className="check-toggle">
+              <input type="checkbox" checked={hideClosing} onChange={(e) => setHideClosing(e.target.checked)} /> 마감 임박(3일 이내) 제외
+            </label>
+            {activeFilters > 0 && (
+              <button className="link-btn" onClick={resetFilters}>
+                조건 초기화
+              </button>
+            )}
+          </div>
+
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            {isRegion
+              ? `'${region}' 지역 공고 ${jobs.length.toLocaleString()}건을 모두 불러왔어요. 검색어와 조건은 바로 적용됩니다.`
+              : '검색어를 입력하면 고용24 전국 공고에서 찾아 드려요. 우리 지역만 보려면 위에서 지역을 눌러 주세요.'}{' '}
+            직종은 공고 제목으로 자동 분류되어 일부 다를 수 있어요.
+          </p>
+        </div>
+
+        {/* 결과 */}
+        {loading && <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>채용정보를 불러오는 중입니다...</div>}
+
+        {!loading && error && (
+          <div className="panel" style={{ textAlign: 'center', padding: '40px 24px' }}>
+            <p style={{ color: 'var(--danger-text)', fontSize: '1.05rem', marginBottom: '8px' }}>채용정보를 불러오지 못했습니다.</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '20px' }}>
+              {error}
+              <br />
+              고용24 서버가 잠시 바쁠 때 생기는 문제로, 잠시 후 다시 시도하면 대부분 해결됩니다.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button className="btn btn-primary" onClick={() => load({ region, keyword: query.trim() })}>
+                <RefreshCw size={16} /> 다시 시도
+              </button>
+              <a className="btn btn-secondary" href="https://www.work24.go.kr/" target="_blank" rel="noopener noreferrer">
+                고용24에서 직접 찾기 <ExternalLink size={16} />
+              </a>
+            </div>
           </div>
         )}
+
+        {!loading && !error && (
+          <>
+            <p style={{ fontWeight: 600, marginBottom: '14px' }}>
+              조건에 맞는 공고 <span style={{ color: 'var(--primary)' }}>{filtered.length.toLocaleString()}건</span>
+              {!isRegion && jobs.length < total && <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.85rem' }}> (지금까지 불러온 {jobs.length}건 기준)</span>}
+            </p>
+            {visible.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                {visible.map((job) => (
+                  <JobCard key={job.id} job={job} />
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '50px 0' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', marginBottom: '14px' }}>조건에 맞는 공고가 없습니다.</p>
+                {activeFilters > 0 && (
+                  <button className="btn btn-secondary" onClick={resetFilters}>
+                    조건 초기화
+                  </button>
+                )}
+              </div>
+            )}
+            {canLoadMore && (
+              <div style={{ textAlign: 'center', marginTop: '24px' }}>
+                <button className="btn btn-secondary" onClick={loadMore} disabled={loadingMore}>
+                  {loadingMore ? '불러오는 중...' : '공고 더 보기'}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* 채용행사 */}
+        <section style={{ marginTop: '70px' }}>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CalendarDays size={22} style={{ color: 'var(--primary)' }} /> 관내 채용행사·채용박람회 달력
+          </h2>
+          <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+            센터와 기관이 직접 등록한 채용박람회, 구인구직 만남의 날, 동행면접 일정입니다. 날짜를 누르면 그날 행사를 볼 수 있어요.
+          </p>
+          <div className="filter-row" style={{ marginBottom: '16px' }}>
+            {REGIONS.map((r) => (
+              <button key={r} className={`filter-btn ${eventRegion === r ? 'active' : ''}`} onClick={() => setEventRegion(r)}>
+                {r}
+              </button>
+            ))}
+          </div>
+          <div className="panel">
+            <EventCalendar events={eventsShown} />
+          </div>
+
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '28px 0 12px', color: 'var(--primary)' }}>고용센터 채용행사 달력 바로가기</h3>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+            {EVENT_SITES.map((s) => (
+              <LinkCard key={s.name} site={s} />
+            ))}
+          </div>
+        </section>
+
+        {/* 다른 채용사이트 */}
+        <section style={{ marginTop: '70px' }}>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px' }}>다른 채용사이트도 함께 확인해보세요</h2>
+          <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
+            분야별로 자주 활용되는 전문 채용사이트예요. <strong>회원가입 필요</strong> 표시가 있는 곳은 가입해야 공고를 볼 수 있으니, 먼저 위의 고용24 공고를 확인해 보세요.
+          </p>
+          <LinkGroups groups={JOB_SITES} />
+        </section>
       </div>
     </div>
   );
