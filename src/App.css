@@ -87,7 +87,7 @@
 }
 
 .hero h1 {
-  font-size: 3rem;
+  font-size: clamp(1.85rem, 1.2rem + 3.2vw, 3rem);
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: -0.02em;
@@ -102,7 +102,7 @@
 }
 
 .hero-subtitle {
-  font-size: 1.25rem;
+  font-size: clamp(1.05rem, 0.95rem + 0.5vw, 1.25rem);
   color: var(--text-secondary);
   max-width: 600px;
   margin: 0 auto 36px;
@@ -147,14 +147,14 @@
 
 /* Feature Grid & Cards */
 .section-title {
-  font-size: 2rem;
+  font-size: clamp(1.5rem, 1.2rem + 1.5vw, 2rem);
   font-weight: 700;
   margin-bottom: 12px;
   color: var(--text-primary);
 }
 
 .section-desc {
-  font-size: 1.05rem;
+  font-size: clamp(0.98rem, 0.95rem + 0.2vw, 1.05rem);
   color: var(--text-secondary);
   margin-bottom: 40px;
 }
@@ -240,14 +240,14 @@
 }
 
 .page-title {
-  font-size: 2.5rem;
+  font-size: clamp(1.7rem, 1.25rem + 2.2vw, 2.5rem);
   font-weight: 800;
   color: var(--text-primary);
   margin-bottom: 12px;
 }
 
 .page-subtitle {
-  font-size: 1.1rem;
+  font-size: clamp(1rem, 0.95rem + 0.3vw, 1.1rem);
   color: var(--text-secondary);
   max-width: 600px;
   margin: 0 auto;
@@ -692,8 +692,8 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .hero h1 {
-    font-size: 2.25rem;
+  .hero {
+    padding: 56px 0;
   }
   .nav-item span {
     display: none;
@@ -722,13 +722,32 @@
     height: 6px;
     padding: 0;
   }
-  .page-title {
-    font-size: 1.9rem;
-  }
   .navbar-container {
     gap: 8px;
   }
   .logo span {
     display: none;
+  }
+}
+
+/* 작은 폰(360~480px): 상단 메뉴와 글자 크기 버튼이 화면 안에 들어오도록 */
+@media (max-width: 480px) {
+  .navbar-container {
+    height: 60px;
+    gap: 4px;
+  }
+  .nav-links {
+    gap: 2px;
+  }
+  .nav-item {
+    padding: 8px;
+  }
+  .font-size-control {
+    gap: 2px;
+    padding: 2px;
+  }
+  .font-size-btn {
+    width: 24px;
+    height: 24px;
   }
 }

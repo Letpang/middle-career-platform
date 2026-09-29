@@ -1,3 +1,4 @@
+import { keepPhones } from '../lib/text';
 import { ExternalLink, Info } from 'lucide-react';
 import type { LinkGroup, LinkSite } from '../data/links';
 
@@ -19,7 +20,7 @@ export const LinkCard = ({ site }: { site: LinkSite }) => (
       <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.98rem' }}>{site.name}</span>
       <ExternalLink size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
     </div>
-    <span style={{ fontSize: '0.83rem', color: 'var(--text-secondary)' }}>{site.desc}</span>
+    <span style={{ fontSize: '0.83rem', color: 'var(--text-secondary)' }}>{keepPhones(site.desc)}</span>
     <div>
       <AccessBadge access={site.access} />
     </div>
