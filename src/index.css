@@ -29,7 +29,9 @@
   --glass-border: rgba(255, 255, 255, 0.5);
   
   --success: #10b981;
+  --success-text: #047857;
   --danger: #ef4444;
+  --danger-text: #b91c1c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -55,6 +57,9 @@
     
     --glass-bg: rgba(17, 24, 39, 0.7);
     --glass-border: rgba(255, 255, 255, 0.05);
+
+    --success-text: #34d399;
+    --danger-text: #f87171;
   }
 }
 
@@ -124,6 +129,15 @@ button {
 
 .fade-in {
   animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes spin {
+  from { transform: rotate(0); }
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
 }
 
 /* Form inputs & interactive items */

@@ -1,0 +1,5 @@
+# 로컬 개발용 비밀값. 이 파일을 .dev.vars 로 복사한 뒤 값을 채우세요. (.dev.vars 는 git에 올라가지 않습니다)
+WORK24_API_KEY=고용24_오픈API_인증키
+ADMIN_PASSWORD=로컬에서_쓸_관리자_비밀번호
+# AI 질문창 (기존 사이트와 같은 Google Gemini 키). 없으면 Cloudflare Workers AI를 씁니다.
+GOOGLE_API_KEY=구글_Gemini_API_키

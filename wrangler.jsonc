@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "middle-career-platform",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-06-28",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // 기관 교육과정·채용행사, 상담 신청, 방문자 수를 저장하는 DB
+  // 운영 DB (soujinne 계정, 2026-09-29 생성)
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "career-bridge-db",
+      "database_id": "bcfa1fea-1442-4d58-a750-4266df544045",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // AI 질문창 (별도 API 키 없이 Cloudflare Workers AI 사용)
+  "ai": {
+    "binding": "AI"
+  }
+  // 비밀값(secret)은 파일에 적지 않고 아래 명령으로 등록합니다.
+  //   npx wrangler secret put WORK24_API_KEY   (고용24 오픈API 인증키)
+  //   npx wrangler secret put ADMIN_PASSWORD   (센터 관리자 비밀번호)
+}

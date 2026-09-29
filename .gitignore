@@ -28,3 +28,11 @@ dist-ssr
 .env.local
 .env.*.local
 
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
+
+# 원본 사이트 코드 (별도 git 저장소, 비밀값 포함)
+career-bridge/
