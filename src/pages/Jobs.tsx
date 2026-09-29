@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Search, MapPin, Funnel, RefreshCw, ExternalLink, CalendarDays, Briefcase, X } from 'lucide-react';
 import type { Navigate } from '../App';
 import { fetchJobs, fetchPrograms, type Job, type Program } from '../api';
-import { classifyJob, groupByCategory, isCareerFree, isEducationFree, titleTags, daysLeft } from '../data/jobs';
+import { classifyJob, countBy, groupByCategory, jobArea, JOB_FILTERS, matchesQuery, parseFilters, type JobFilterKey } from '../data/jobs';
 import { EVENT_SITES, JOB_SITES } from '../data/links';
 import { loadProfile } from '../lib/profile';
 import JobCard from '../components/JobCard';
@@ -19,10 +19,8 @@ const Jobs = (_: { navigate: Navigate }) => {
   const [query, setQuery] = useState<string>(initial.get('keyword') || '');
   const [category, setCategory] = useState<string>(initial.get('category') || '전체');
   const [workType, setWorkType] = useState('전체');
-  const [careerFree, setCareerFree] = useState(false);
-  const [eduFree, setEduFree] = useState(false);
-  const [noShift, setNoShift] = useState(false);
-  const [hideClosing, setHideClosing] = useState(false);
+  const [filters, setFilters] = useState<JobFilterKey[]>(() => parseFilters(initial.get('filter')));
+  const toggleFilter = (key: JobFilterKey, on: boolean) => setFilters((fs) => (on ? [...fs.filter((k) => k !== key), key] : fs.filter((k) => k !== key)));
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,36 +59,38 @@ const Jobs = (_: { navigate: Navigate }) => {
   const workTypes = useMemo(() => ['전체', ...Array.from(new Set(jobs.map((j) => j.type).filter(Boolean)))], [jobs]);
 
   const filtered = useMemo(() => {
-    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return jobs.filter((j) => {
-      if (category !== '전체' && classifyJob(j.title) !== category) return false;
-      if (workType !== '전체' && j.type !== workType) return false;
-      if (careerFree && !isCareerFree(j)) return false;
-      if (eduFree && !isEducationFree(j)) return false;
-      if (noShift && titleTags(j.title).some((t) => ['3교대', '2교대', '격일제', '교대근무', '야간'].includes(t.label))) return false;
-      if (hideClosing) {
-        const left = daysLeft(j.closingDate);
-        if (left !== null && left <= 3) return false;
-      }
-      if (words.length) {
-        const hay = `${j.title} ${j.company} ${j.location} ${j.address || ''} ${j.salary} ${j.type}`.toLowerCase();
-        if (!words.every((w) => hay.includes(w))) return false;
-      }
-      return true;
-    });
-  }, [jobs, category, workType, careerFree, eduFree, noShift, hideClosing, query]);
+    const tests = JOB_FILTERS.filter((f) => filters.includes(f.key)).map((f) => f.test);
+    return jobs.filter(
+      (j) =>
+        (category === '전체' || classifyJob(j.title) === category) &&
+        (workType === '전체' || j.type === workType) &&
+        tests.every((t) => t(j)) &&
+        matchesQuery(j, query),
+    );
+  }, [jobs, category, workType, filters, query]);
+
+  // 좁혀 보기: 지금 결과 안에서 동네·조건별로 몇 건씩인지. 결과를 눈에 띄게 줄여 주는 것만 보여 줍니다(90% 이하).
+  const narrow = useMemo(() => {
+    const useful = (c: { count: number }) => c.count > 0 && c.count <= filtered.length * 0.9;
+    const areas = countBy(filtered, jobArea)
+      .filter((a) => !query.includes(a.name))
+      .slice(0, 5)
+      .map((a) => ({ label: a.name, count: filtered.filter((j) => matchesQuery(j, a.name)).length, apply: () => setQuery((q) => `${q.trim()} ${a.name}`.trim()) }))
+      .filter(useful);
+    const conds = JOB_FILTERS.filter((f) => f.key !== 'closing' && !filters.includes(f.key))
+      .map((f) => ({ label: f.label, count: filtered.filter(f.test).length, apply: () => toggleFilter(f.key, true) }))
+      .filter(useful);
+    return [...areas, ...conds];
+  }, [filtered, filters, query]);
 
   const visible = filtered.slice(0, shown);
   const canLoadMore = filtered.length > shown;
-  const activeFilters = [category !== '전체', workType !== '전체', careerFree, eduFree, noShift, hideClosing].filter(Boolean).length;
+  const activeFilters = [category !== '전체', workType !== '전체'].filter(Boolean).length + filters.length;
 
   const resetFilters = () => {
     setCategory('전체');
     setWorkType('전체');
-    setCareerFree(false);
-    setEduFree(false);
-    setNoShift(false);
-    setHideClosing(false);
+    setFilters([]);
   };
 
   const eventsShown = eventRegion === '전체' ? events : events.filter((e) => !e.region || e.region.includes(eventRegion));
@@ -162,18 +162,11 @@ const Jobs = (_: { navigate: Navigate }) => {
                 </option>
               ))}
             </select>
-            <label className="check-toggle">
-              <input type="checkbox" checked={careerFree} onChange={(e) => setCareerFree(e.target.checked)} /> 경력 무관
-            </label>
-            <label className="check-toggle">
-              <input type="checkbox" checked={eduFree} onChange={(e) => setEduFree(e.target.checked)} /> 학력 무관
-            </label>
-            <label className="check-toggle">
-              <input type="checkbox" checked={noShift} onChange={(e) => setNoShift(e.target.checked)} /> 교대·야간 제외
-            </label>
-            <label className="check-toggle">
-              <input type="checkbox" checked={hideClosing} onChange={(e) => setHideClosing(e.target.checked)} /> 마감 임박(3일 이내) 제외
-            </label>
+            {JOB_FILTERS.map((f) => (
+              <label key={f.key} className="check-toggle">
+                <input type="checkbox" checked={filters.includes(f.key)} onChange={(e) => toggleFilter(f.key, e.target.checked)} /> {f.label}
+              </label>
+            ))}
             {activeFilters > 0 && (
               <button className="link-btn" onClick={resetFilters}>
                 조건 초기화
@@ -214,6 +207,16 @@ const Jobs = (_: { navigate: Navigate }) => {
             <p style={{ fontWeight: 600, marginBottom: '14px' }}>
               조건에 맞는 공고 <span style={{ color: 'var(--primary)' }}>{filtered.length.toLocaleString()}건</span>
             </p>
+            {narrow.length > 0 && (
+              <div className="filter-row" style={{ marginBottom: '18px' }}>
+                <span className="filter-label">좁혀 보기</span>
+                {narrow.map((c) => (
+                  <button key={c.label} className="filter-btn" onClick={c.apply}>
+                    {c.label} <span style={{ opacity: 0.75 }}>{c.count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             {visible.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 {visible.map((job) => (

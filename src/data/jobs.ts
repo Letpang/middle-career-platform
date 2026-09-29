@@ -83,3 +83,61 @@ export function daysLeft(closing?: string): number | null {
   today.setHours(0, 0, 0, 0);
   return Math.round((end.getTime() - today.getTime()) / 86400_000);
 }
+
+// ─── 메인 "지금 많이 찾는 일자리"와 일자리 탭이 같은 규칙으로 공고를 셉니다 ───
+
+// 동네: 고양은 구(덕양구·일산동구·일산서구), 파주·김포는 주소의 읍·면(광탄면, 양촌읍 등)
+export function jobArea(job: Job): string | null {
+  const gu = /([가-힣]+구)$/.exec((job.location || '').trim());
+  if (gu) return gu[1];
+  const em = /([가-힣0-9]+[읍면])(?=\s)/.exec(`${job.address || ''} `);
+  return em ? em[1] : null;
+}
+
+// 검색어(띄어쓰기로 여러 단어)가 제목·회사·주소 등에 모두 들어 있는지
+export function matchesQuery(job: Job, query: string): boolean {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = `${job.title} ${job.company} ${job.location} ${job.address || ''} ${job.salary} ${job.type}`.toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
+const SHIFT_TAGS = ['3교대', '2교대', '격일제', '교대근무', '야간'];
+const hasTag = (job: Job, label: string) => titleTags(job.title).some((t) => t.label === label);
+
+export type JobFilterKey = 'career' | 'edu' | 'noshift' | 'senior' | 'beginner' | 'parttime' | 'closing';
+
+// 일자리 탭의 "조건" 체크박스. 주소의 ?filter=career,noshift 로도 켤 수 있습니다.
+export const JOB_FILTERS: { key: JobFilterKey; label: string; test: (job: Job) => boolean }[] = [
+  { key: 'career', label: '경력 무관', test: isCareerFree },
+  { key: 'edu', label: '학력 무관', test: isEducationFree },
+  { key: 'noshift', label: '교대·야간 제외', test: (j) => !titleTags(j.title).some((t) => SHIFT_TAGS.includes(t.label)) },
+  { key: 'senior', label: '중장년·시니어 우대', test: (j) => hasTag(j, '중장년·시니어 우대') },
+  { key: 'beginner', label: '초보 가능', test: (j) => hasTag(j, '초보 가능') },
+  { key: 'parttime', label: '단시간·시간제', test: (j) => hasTag(j, '단시간') },
+  {
+    key: 'closing',
+    label: '마감 임박(3일 이내) 제외',
+    test: (j) => {
+      const left = daysLeft(j.closingDate);
+      return left === null || left > 3;
+    },
+  },
+];
+
+export function parseFilters(value: string | null): JobFilterKey[] {
+  const keys = JOB_FILTERS.map((f) => f.key);
+  return (value || '').split(',').filter((k): k is JobFilterKey => (keys as string[]).includes(k));
+}
+
+// 중장년이 자주 찾는 검색어 (메인 추천용). 공고가 있는 것만 보여 줍니다.
+export const SENIOR_KEYWORDS = ['경비', '아파트', '요양보호사', '주간보호', '미화', '운전', '통근', '주5일', '기숙사', '식당', '포장', '사무보조'];
+
+export function countBy<T>(items: T[], key: (item: T) => string | null): { name: string; count: number }[] {
+  const map = new Map<string, number>();
+  for (const it of items) {
+    const k = key(it);
+    if (k) map.set(k, (map.get(k) || 0) + 1);
+  }
+  return Array.from(map, ([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+}
