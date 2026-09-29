@@ -158,6 +158,7 @@ function App() {
         <div className="container">
           <div className="footer-logo">커리어 브릿지 (Career Bridge)</div>
           <p style={{ marginBottom: '10px', fontSize: '0.85rem' }}>인생 2막, 새로운 시작과 도전을 위한 중장년 전문 커리어 매칭 시스템</p>
+          <p style={{ fontSize: '0.75rem', marginBottom: '4px' }}>직업정보제공사업자 신고번호: J1802020260007</p>
           <p style={{ fontSize: '0.75rem' }}>© {new Date().getFullYear()} Career Bridge. All rights reserved.</p>
           {visits !== null && <p style={{ fontSize: '0.75rem', marginTop: '6px', opacity: 0.8 }}>누적 방문자 수: {visits.toLocaleString()}명</p>}
           <div className="footer-links">
