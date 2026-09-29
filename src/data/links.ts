@@ -58,7 +58,7 @@ export const JOB_SITES: LinkGroup[] = [
   },
   {
     category: '요양보호사·간병·간호',
-    note: '이 분야 사이트는 대부분 회원가입 후에 상세 공고를 볼 수 있어요. 가입이 부담되시면 위의 고용24 공고(요양보호사·간병·간호 직종)를 먼저 확인해 보세요.',
+    note: '이 분야 사이트는 대부분 회원가입 후에 상세 공고를 볼 수 있어요.',
     sites: [
       { name: '너스잡', url: 'https://www.nursejob.co.kr/', desc: '간호사·간호조무사·요양보호사 전문' },
       { name: '케어파트너', url: 'https://www.carepartner.kr/jobs', desc: '방문·입주·시설요양 채용' },
@@ -78,7 +78,7 @@ export const JOB_SITES: LinkGroup[] = [
   },
   {
     category: '경비·시설관리',
-    note: '일부 협회 사이트는 회원가입 후에 구인 정보를 볼 수 있어요. 경비·시설관리 공고는 고용24에도 많이 올라와 있습니다.',
+    note: '일부 협회 사이트는 회원가입 후에 구인 정보를 볼 수 있어요.',
     sites: [
       { name: '한국경비협회', url: 'https://www.ksan.or.kr/comm/job.do', desc: '경비업 구인정보' },
       { name: '대한민국경비협회', url: 'https://www.roksa.or.kr/', desc: '경비업 구인·구직 정보' },

@@ -274,7 +274,7 @@ const Jobs = (_: { navigate: Navigate }) => {
         <section style={{ marginTop: '70px' }}>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px' }}>다른 채용사이트도 함께 확인해보세요</h2>
           <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-            분야별로 자주 활용되는 전문 채용사이트예요. <strong>회원가입 필요</strong> 표시가 있는 곳은 가입해야 공고를 볼 수 있으니, 먼저 위의 고용24 공고를 확인해 보세요.
+            분야별로 자주 활용되는 전문 채용사이트예요. <strong>회원가입 필요</strong> 표시가 있는 곳은 가입해야 공고를 볼 수 있어요.
           </p>
           <LinkGroups groups={JOB_SITES} />
         </section>
