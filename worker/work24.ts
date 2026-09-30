@@ -59,6 +59,12 @@ function getApiKey(env: Env): string {
   throw new Work24Error('고용24 인증키가 설정되지 않았습니다. (WORK24_API_KEY)', 500);
 }
 
+// 숫자 엔티티: 10진수(&#39;)와 16진수(&#xd;, &#x27;). 잘못된 번호는 그대로 둡니다.
+function decodeNumericEntity(match: string, hex: string | undefined, dec: string | undefined): string {
+  const code = hex !== undefined ? parseInt(hex, 16) : Number(dec);
+  return Number.isInteger(code) && code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : match;
+}
+
 // 고용24 응답 일부는 &가 두 번 이스케이프되어 "&amp;amp;", "&amp;#39;"처럼 옵니다.
 // &amp;를 먼저 풀어야 나머지 기호가 남지 않습니다.
 function decodeEntities(s: string): string {
@@ -69,9 +75,10 @@ function decodeEntities(s: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&apos;/g, "'")
+    .replace(/&#(?:[xX]([0-9a-fA-F]+)|(\d+));/g, decodeNumericEntity)
     .replace(/&nbsp;/g, ' ')
+    .replace(/\r\n?/g, '\n') // &#xd;(CR)로 온 줄바꿈을 화면용 \n으로 통일
     .trim();
 }
 
