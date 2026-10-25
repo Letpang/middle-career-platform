@@ -28,6 +28,11 @@ function json(data: unknown, status = 200, headers: Record<string, string> = {})
   });
 }
 
+// 한국 시간 기준 날짜 (YYYY-MM-DD). daysAgo만큼 이전 날짜도 구합니다.
+function kstDate(daysAgo = 0): string {
+  return new Date(Date.now() + 9 * 3600_000 - daysAgo * 86400_000).toISOString().slice(0, 10);
+}
+
 async function readBody(req: Request): Promise<Record<string, unknown>> {
   try {
     const body = await req.json();
@@ -264,6 +269,14 @@ async function adminRoutes(env: Env, req: Request, path: string): Promise<Respon
 
   if (path === '/api/admin/me' && method === 'GET') return json({ ok: true });
 
+  if (path === '/api/admin/visits' && method === 'GET') {
+    const [total, days] = await env.DB.batch<Record<string, unknown>>([
+      env.DB.prepare(`SELECT value FROM counters WHERE name = 'visits'`),
+      env.DB.prepare('SELECT day, visits, visitors FROM daily_visits WHERE day >= ? ORDER BY day').bind(kstDate(89)),
+    ]);
+    return json({ total: total.results[0]?.value ?? 0, today: kstDate(), days: days.results });
+  }
+
   if (path === '/api/admin/orgs' && method === 'GET') {
     const { results } = await env.DB.prepare(
       `SELECT o.id, o.login_id, o.name, o.org_type, o.region, o.manager, o.phone, o.email, o.homepage, o.status, o.admin_note,
@@ -441,8 +454,16 @@ async function handleApi(req: Request, env: Env, ctx: ExecutionContext): Promise
   if (jobMatch && req.method === 'GET') return json(await getJobDetail(env, ctx, jobMatch[1]));
 
   if (path === '/api/visit' && req.method === 'GET') {
-    const row = await env.DB.prepare(`UPDATE counters SET value = value + 1 WHERE name = 'visits' RETURNING value`).first<{ value: number }>();
-    return json({ count: row?.value ?? null });
+    // first=1: 이 기기에서 오늘 처음 연 경우 (화면이 localStorage로 판단)
+    const first = url.searchParams.get('first') === '1' ? 1 : 0;
+    const [counter] = await env.DB.batch<{ value: number }>([
+      env.DB.prepare(`UPDATE counters SET value = value + 1 WHERE name = 'visits' RETURNING value`),
+      env.DB.prepare(
+        `INSERT INTO daily_visits (day, visits, visitors) VALUES (?, 1, ?)
+           ON CONFLICT(day) DO UPDATE SET visits = visits + 1, visitors = visitors + excluded.visitors`,
+      ).bind(kstDate(), first),
+    ]);
+    return json({ count: counter.results[0]?.value ?? null });
   }
 
   if (path === '/api/programs' && req.method === 'GET') return publicPrograms(env, url);

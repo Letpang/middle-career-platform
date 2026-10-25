@@ -62,7 +62,16 @@ function App() {
   const [visits, setVisits] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchVisit()
+    // 이 기기에서 오늘(한국 시간) 처음 열었는지 확인해 순방문자로 셉니다.
+    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    let first = true;
+    try {
+      first = localStorage.getItem('career_bridge_visit_day') !== today;
+      localStorage.setItem('career_bridge_visit_day', today);
+    } catch {
+      // ignore
+    }
+    fetchVisit(first)
       .then((d) => typeof d.count === 'number' && setVisits(d.count))
       .catch(() => {});
   }, []);

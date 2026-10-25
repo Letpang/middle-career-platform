@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { LogOut, ShieldCheck, RefreshCw } from 'lucide-react';
-import { adminApi, ApiError, type CounselingRequest, type Org } from '../api';
+import { adminApi, ApiError, type CounselingRequest, type Org, type VisitStats } from '../api';
 import { formatRange } from '../components/ProgramCard';
+import VisitStatsPanel from '../components/VisitStatsPanel';
 
 type AdminProgram = Awaited<ReturnType<typeof adminApi.programs>>['items'][number];
-type TabKey = 'orgs' | 'counseling' | 'programs';
+type TabKey = 'orgs' | 'counseling' | 'programs' | 'visits';
 
 const ORG_STATUS: Record<Org['status'], { label: string; tone: string }> = {
   pending: { label: '승인 대기', tone: 'warn' },
@@ -30,16 +31,18 @@ const Admin = () => {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [requests, setRequests] = useState<CounselingRequest[]>([]);
   const [programs, setPrograms] = useState<AdminProgram[]>([]);
+  const [visits, setVisits] = useState<VisitStats | null>(null);
   const [center, setCenter] = useState('전체');
   const [error, setError] = useState<string>();
 
   const loadAll = useCallback(async () => {
     setError(undefined);
     try {
-      const [o, c, p] = await Promise.all([adminApi.orgs(), adminApi.counseling(), adminApi.programs()]);
+      const [o, c, p, v] = await Promise.all([adminApi.orgs(), adminApi.counseling(), adminApi.programs(), adminApi.visits()]);
       setOrgs(o.items);
       setRequests(c.items);
       setPrograms(p.items);
+      setVisits(v);
       setAuthed(true);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setAuthed(false);
@@ -81,7 +84,7 @@ const Admin = () => {
       <div className="page-header">
         <div className="container">
           <h1 className="page-title">센터 관리자</h1>
-          <p className="page-subtitle">기관 계정 승인, 상담 신청 확인, 등록된 교육과정·행사 관리를 한 곳에서 합니다.</p>
+          <p className="page-subtitle">기관 계정 승인, 상담 신청 확인, 등록된 교육과정·행사 관리, 방문 통계를 한 곳에서 봅니다.</p>
         </div>
       </div>
 
@@ -130,6 +133,9 @@ const Admin = () => {
               </button>
               <button className={`tab ${tab === 'programs' ? 'active' : ''}`} onClick={() => setTab('programs')}>
                 등록 교육·행사 ({programs.length})
+              </button>
+              <button className={`tab ${tab === 'visits' ? 'active' : ''}`} onClick={() => setTab('visits')}>
+                방문 통계
               </button>
             </div>
 
@@ -317,6 +323,8 @@ const Admin = () => {
                 </table>
               </div>
             )}
+
+            {tab === 'visits' && visits && <VisitStatsPanel stats={visits} />}
           </>
         )}
       </div>
