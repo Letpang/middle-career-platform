@@ -799,3 +799,40 @@
     height: 24px;
   }
 }
+
+/* 관리자 방문 통계 */
+.visit-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.visit-tile {
+  padding: 16px 18px;
+}
+.visit-tile-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.visit-tile-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 4px;
+}
+.visit-tile-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.visit-tooltip {
+  position: absolute;
+  top: 0;
+  pointer-events: none;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--card-shadow);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+}

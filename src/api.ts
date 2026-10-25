@@ -140,7 +140,7 @@ export const fetchPrograms = (kind: ProgramKind) => get<{ items: Program[] }>(`/
 export const submitCounseling = (body: Record<string, unknown>) => post<{ ok: true }>('/api/counseling', body);
 
 // 방문자 수 · AI
-export const fetchVisit = () => get<{ count: number | null }>('/api/visit');
+export const fetchVisit = (first: boolean) => get<{ count: number | null }>(`/api/visit${first ? '?first=1' : ''}`);
 export const askChat = (message: string, history: { role: string; text: string }[]) =>
   post<{ reply?: string }>('/api/chat', { message, history });
 
@@ -157,10 +157,17 @@ export const orgApi = {
 };
 
 // 센터 관리자
+export interface VisitStats {
+  total: number;
+  today: string;
+  days: { day: string; visits: number; visitors: number }[];
+}
+
 export const adminApi = {
   login: (password: string) => post<{ ok: true }>('/api/admin/login', { password }),
   logout: () => post<{ ok: true }>('/api/admin/logout', {}),
   me: () => get<{ ok: true }>('/api/admin/me'),
+  visits: () => get<VisitStats>('/api/admin/visits'),
   orgs: () => get<{ items: Org[] }>('/api/admin/orgs'),
   setOrgStatus: (id: number, status: Org['status'], note = '') => post<{ ok: true }>(`/api/admin/orgs/${id}/status`, { status, note }),
   programs: () => get<{ items: (Pick<Program, 'id' | 'kind' | 'title' | 'start_date' | 'end_date' | 'visible' | 'updated_at'> & { org_name: string })[] }>('/api/admin/programs'),
