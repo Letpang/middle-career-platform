@@ -4,7 +4,7 @@ import type { Navigate } from '../App';
 import { fetchCenters, fetchJobs, fetchPrograms, type CenterSummary, type Job } from '../api';
 import JobTrends from '../components/JobTrends';
 import { CENTERS } from '../data/links';
-import { centerRegion, matchCenter, NATIONAL_CENTERS } from '../data/centers';
+import { centerRegion, centerSlug, matchCenter, NATIONAL_CENTERS } from '../data/centers';
 import type { Region } from '../data/regions';
 
 // 상단에서 고른 지역(region)의 공고와 중장년내일센터를 보여 줍니다. 지역이 바뀌면 화면을 새로 그립니다(App 의 key).
@@ -45,11 +45,12 @@ const Home = ({ navigate, region }: { navigate: Navigate; region: Region }) => {
       address: page?.address || c.address,
       phone: page?.phone || c.phone,
       hours: page?.hours || CENTERS.find((x) => x.centerName === c.name)?.hours || '',
-      slug: page?.slug,
+      slug: page?.slug || centerSlug(c),
     };
   });
-  const centerHome = centers.find((c) => c.slug);
-  const goCenters = () => document.getElementById('centers')?.scrollIntoView({ behavior: 'smooth' });
+  // 우리 지역 첫 센터의 홈페이지. 시·도에 센터가 없으면 아래 센터 목록으로 내려갑니다.
+  const centerHome = centers[0];
+  const goCenterHome = () => (centerHome ? navigate('center', { slug: centerHome.slug }) : document.getElementById('centers')?.scrollIntoView({ behavior: 'smooth' }));
 
   const services = [
     { icon: Briefcase, title: '실시간 일자리 정보', desc: '고용24 공공 채용정보와 실시간으로 연결해, 근무지·급여·근무형태·경력 조건을 공고를 열기 전에 한눈에 비교할 수 있습니다.', link: '일자리 찾기', tab: 'jobs' as const },
@@ -59,7 +60,7 @@ const Home = ({ navigate, region }: { navigate: Navigate; region: Region }) => {
       title: '중장년내일센터 홈페이지',
       desc: `${region.name} 가까운 중장년내일센터의 교육 일정, 추천 채용, 공지사항, 오시는 길을 센터 홈페이지에서 한 번에 확인할 수 있습니다.`,
       link: centerHome ? '센터 홈페이지 가기' : '우리 지역 센터 보기',
-      onClick: () => (centerHome ? navigate('center', { slug: centerHome.slug! }) : goCenters()),
+      onClick: goCenterHome,
     },
     {
       icon: MessageCircle,
@@ -87,6 +88,10 @@ const Home = ({ navigate, region }: { navigate: Navigate; region: Region }) => {
             <button className="btn btn-primary" onClick={() => navigate('jobs')}>
               맞춤 일자리 찾기
               <ArrowRight size={18} />
+            </button>
+            <button className="btn btn-secondary" onClick={goCenterHome}>
+              <Building2 size={18} />
+              중장년내일센터 바로가기
             </button>
             <button className="btn btn-secondary" onClick={() => navigate('counseling')}>
               1:1 상담 신청하기
@@ -165,11 +170,9 @@ const Home = ({ navigate, region }: { navigate: Navigate; region: Region }) => {
                       </div>
                     )}
                   </div>
-                  {c.slug && (
-                    <button className="card-link" style={{ marginTop: '12px' }} onClick={() => navigate('center', { slug: c.slug! })}>
-                      센터 홈페이지 <ArrowRight size={16} />
-                    </button>
-                  )}
+                  <button className="card-link" style={{ marginTop: '12px' }} onClick={() => navigate('center', { slug: c.slug })}>
+                    센터 홈페이지 <ArrowRight size={16} />
+                  </button>
                 </div>
               </div>
             ))}

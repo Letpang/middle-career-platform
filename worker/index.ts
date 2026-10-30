@@ -4,7 +4,7 @@
 import { listJobs, listRegionJobs, getJobDetail, Work24Error } from './work24';
 import { hashPassword, verifyPassword, verifyAdminPassword, createSession, getSession, destroySession } from './auth';
 import { findRegion } from '../src/data/regions';
-import { NATIONAL_CENTERS } from '../src/data/centers';
+import { CENTER_SERVICES, centerRegion, centerSlug, matchCenter, NATIONAL_CENTERS } from '../src/data/centers';
 import { WorkerMailer } from 'worker-mailer';
 
 export interface Env {
@@ -251,15 +251,6 @@ async function orgRoutes(env: Env, req: Request, path: string): Promise<Response
 
 const CENTER_TYPE = '중장년내일센터';
 
-// 처음 만들 때 채워 두는 서비스 안내 (전국 중장년내일센터 공통 서비스, 고용24 안내 기준)
-const DEFAULT_SERVICES = [
-  { title: '생애경력설계', target: '재직 중인 40세 이상', desc: '자가진단으로 그동안 쌓은 경력자산을 확인하고 앞으로의 진로를 함께 설계합니다.' },
-  { title: '전직스쿨', target: '퇴직 예정자', desc: '퇴직을 앞두고 변화에 대비하는 마음가짐과 전직에 필요한 기술을 익힙니다.' },
-  { title: '재도약 프로그램', target: '퇴직 후 구직 중인 40세 이상', desc: '이력서·자기소개서 작성, 면접 실습으로 구직 역량을 높이고 동아리 활동으로 함께 준비합니다.' },
-  { title: '1:1 전직지원 상담', target: '40세 이상 구직자', desc: '전담 컨설턴트가 6개월 동안 상담과 취업 알선을 도와드립니다. 모든 서비스는 무료입니다.' },
-  { title: '기업 인재 추천', target: '중장년을 채용하려는 기업', desc: '구인 신청을 받아 경력과 조건에 맞는 중장년 인재를 추천해 드립니다.' },
-];
-
 const CENTER_COLS = ['slug', 'operator', 'intro', 'address', 'phone', 'hours', 'map_url', 'job_region', 'services', 'published'] as const;
 const POST_KINDS = ['notice', 'job'] as const;
 const POST_COLS = ['kind', 'title', 'body', 'company', 'deadline', 'link'] as const;
@@ -314,19 +305,21 @@ async function centerOrgRoutes(env: Env, req: Request, path: string): Promise<Re
     const org = await requireCenter(env, req);
     const page = await env.DB.prepare('SELECT * FROM center_pages WHERE org_id = ?').bind(org.id).first<Record<string, unknown> & { services: string }>();
     if (page) return json({ page: { ...page, services: JSON.parse(page.services) }, exists: true });
+    // 전국 명단의 센터면 기본 주소(/center/<운영기관>)와 주소·전화를 미리 채워, 만들기 전 기본 페이지와 주소가 이어지게 합니다.
     const region = String(org.region || '');
+    const known = matchCenter(String(org.name || ''));
     return json({
       exists: false,
       page: {
-        slug: SLUG_RE.test(region) ? region : '',
-        operator: '',
+        slug: known ? centerSlug(known) : SLUG_RE.test(region) ? region : '',
+        operator: known?.operator || '',
         intro: '',
-        address: '',
-        phone: org.phone,
+        address: known?.address || '',
+        phone: org.phone || known?.phone || '',
         hours: '평일 09:00 ~ 18:00',
         map_url: '',
-        job_region: findRegion(region)?.key || '',
-        services: DEFAULT_SERVICES,
+        job_region: findRegion(region)?.key || (known && centerRegion(known)) || '',
+        services: CENTER_SERVICES,
         published: 1,
       },
     });

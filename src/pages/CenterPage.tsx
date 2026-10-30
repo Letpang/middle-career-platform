@@ -3,6 +3,8 @@ import { Building2, CalendarDays, Clock, ExternalLink, GraduationCap, Briefcase,
 import type { Navigate } from '../App';
 import { fetchCenter, fetchJobs, type CenterPost, type Job } from '../api';
 import { findRegion } from '../data/regions';
+import { CENTER_SERVICES, centerBySlug, centerRegion } from '../data/centers';
+import { CENTERS } from '../data/links';
 import ProgramCard from '../components/ProgramCard';
 import JobCard from '../components/JobCard';
 
@@ -18,6 +20,32 @@ const SECTIONS = [
 ];
 
 const JOB_PREVIEW = 4;
+
+// 센터가 홈페이지를 아직 만들지 않았으면 전국 명단의 주소·전화로 기본 페이지를 보여 줍니다 (/center/<운영기관>).
+function basicCenter(slug: string): CenterData | null {
+  const c = centerBySlug(slug);
+  if (!c) return null;
+  return {
+    center: {
+      slug,
+      org_id: 0,
+      name: c.name,
+      operator: c.operator,
+      intro: '',
+      address: c.address,
+      phone: c.phone,
+      hours: CENTERS.find((x) => x.centerName === c.name)?.hours || '',
+      map_url: '',
+      job_region: centerRegion(c),
+      services: CENTER_SERVICES,
+      published: 1,
+      homepage: '',
+      updated_at: '',
+    },
+    programs: [],
+    posts: [],
+  };
+}
 
 const dateOnly = (s: string) => (s || '').slice(0, 10).replace(/-/g, '.');
 
@@ -76,12 +104,17 @@ const CenterPage = ({ navigate }: { navigate: Navigate }) => {
   const [jobsError, setJobsError] = useState(false);
 
   useEffect(() => {
+    const show = (d: CenterData) => {
+      setData(d);
+      document.title = `${d.center.name} | 커리어 브릿지`;
+    };
     fetchCenter(slug)
-      .then((d) => {
-        setData(d);
-        document.title = `${d.center.name} | 커리어 브릿지`;
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : '센터 정보를 불러오지 못했습니다.'));
+      .then(show)
+      .catch((e) => {
+        const basic = basicCenter(slug);
+        if (basic) show(basic);
+        else setError(e instanceof Error ? e.message : '센터 정보를 불러오지 못했습니다.');
+      });
   }, [slug]);
 
   const jobRegion = data?.center.job_region || '';
@@ -131,7 +164,7 @@ const CenterPage = ({ navigate }: { navigate: Navigate }) => {
                 <Phone size={16} /> {center.phone}
               </a>
             )}
-            <button className="btn btn-secondary" onClick={() => navigate('counseling', { center: `org:${center.org_id}` })}>
+            <button className="btn btn-secondary" onClick={() => navigate('counseling', { center: center.org_id ? `org:${center.org_id}` : center.name })}>
               <MessageCircle size={16} /> 1:1 상담 신청
             </button>
           </div>
