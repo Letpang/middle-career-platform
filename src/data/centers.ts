@@ -50,3 +50,8 @@ export function centerRegion(c: NationalCenter): string {
   const area = sido?.areas.filter(([, name]) => c.address.includes(` ${name}`)).sort((a, b) => b[1].length - a[1].length)[0];
   return sido && area ? `${sido.name} ${area[1]}` : '';
 }
+
+// 계정 이름(예: '고양상공회의소')이 전국 목록의 어느 센터인지. 운영기관 이름이 겹치면
+// ('경북경영자총협회' · '경북경영자총협회 경북북부') 가장 길게 맞는 쪽으로 정합니다.
+export const matchCenter = (orgName: string) =>
+  NATIONAL_CENTERS.filter((n) => orgName.includes(n.operator)).sort((a, b) => b.operator.length - a.operator.length)[0];

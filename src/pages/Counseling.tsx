@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from '
 import { CircleCheck, MessageCircle, Phone, PhoneCall, Users, Send, ChevronDown, Info, TriangleAlert } from 'lucide-react';
 import type { Navigate } from '../App';
 import { fetchCounselCenters, submitCounseling, type CounselCenter } from '../api';
-import { NATIONAL_CENTERS } from '../data/centers';
+import { matchCenter, NATIONAL_CENTERS } from '../data/centers';
 import { findRegion, SIDO } from '../data/regions';
 import { loadProfile, profileSummary } from '../lib/profile';
 
@@ -30,11 +30,6 @@ interface CenterOption {
   phone: string;
   address: string;
 }
-
-// 계정 이름(예: '고양상공회의소')이 전국 목록의 어느 센터인지. 운영기관 이름이 겹치면
-// ('경북경영자총협회' · '경북경영자총협회 경북북부') 가장 길게 맞는 쪽으로 정합니다.
-const matchCenter = (orgName: string) =>
-  NATIONAL_CENTERS.filter((n) => orgName.includes(n.operator)).sort((a, b) => b.operator.length - a.operator.length)[0];
 
 // 승인된 센터 계정(전국) + 아직 계정이 없는 전국 중장년내일센터 (고용24 목록)
 function centerOptions(registered: CounselCenter[]): CenterOption[] {

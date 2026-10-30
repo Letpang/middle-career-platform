@@ -9,7 +9,10 @@ import OrgPortal from './pages/OrgPortal';
 import Admin from './pages/Admin';
 import CenterPage from './pages/CenterPage';
 import ChatWidget from './components/ChatWidget';
+import RegionPicker from './components/RegionPicker';
 import { fetchVisit } from './api';
+import { findRegion } from './data/regions';
+import { loadHomeRegion, saveHomeRegion } from './lib/region';
 import { House as HomeIcon, GraduationCap, Briefcase, User, Link2, MessageCircle, Minus, Plus } from 'lucide-react';
 
 export type Tab = 'home' | 'jobs' | 'education' | 'counseling' | 'profile' | 'org' | 'admin' | 'center';
@@ -66,6 +69,14 @@ function App() {
     }
   });
   const [visits, setVisits] = useState<number | null>(null);
+  const [region, setRegion] = useState(loadHomeRegion);
+
+  const changeRegion = useCallback((key: string) => {
+    const r = findRegion(key);
+    if (!r) return;
+    setRegion(r);
+    saveHomeRegion(r.key);
+  }, []);
 
   useEffect(() => {
     fetchVisit()
@@ -129,7 +140,7 @@ function App() {
       case 'center':
         return <CenterPage key={pathKey} navigate={navigate} />;
       default:
-        return <Home navigate={navigate} />;
+        return <Home key={region.key} navigate={navigate} region={region} />;
     }
   };
 
@@ -152,14 +163,18 @@ function App() {
             ))}
           </div>
 
-          <div className="font-size-control" role="group" aria-label="글자 크기 조절">
-            <button className="font-size-btn" onClick={() => setFontStep((s) => Math.max(0, s - 1))} disabled={fontStep === 0} aria-label="글자 작게">
-              <Minus size={14} />
-            </button>
-            <span className="font-size-label">가</span>
-            <button className="font-size-btn" onClick={() => setFontStep((s) => Math.min(2, s + 1))} disabled={fontStep === 2} aria-label="글자 크게">
-              <Plus size={14} />
-            </button>
+          <div className="navbar-tools">
+            <RegionPicker region={region} onChange={changeRegion} />
+
+            <div className="font-size-control" role="group" aria-label="글자 크기 조절">
+              <button className="font-size-btn" onClick={() => setFontStep((s) => Math.max(0, s - 1))} disabled={fontStep === 0} aria-label="글자 작게">
+                <Minus size={14} />
+              </button>
+              <span className="font-size-label">가</span>
+              <button className="font-size-btn" onClick={() => setFontStep((s) => Math.min(2, s + 1))} disabled={fontStep === 2} aria-label="글자 크게">
+                <Plus size={14} />
+              </button>
+            </div>
           </div>
         </div>
       </nav>
