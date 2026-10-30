@@ -4,7 +4,7 @@ import type { Navigate } from '../App';
 import { fetchCenters, fetchJobs, fetchPrograms, type CenterSummary, type Job } from '../api';
 import JobTrends from '../components/JobTrends';
 import { CENTERS } from '../data/links';
-import { centerRegion, centerSlug, matchCenter, NATIONAL_CENTERS } from '../data/centers';
+import { centerRegion, centerSlug, matchCenter, regionCenters } from '../data/centers';
 import type { Region } from '../data/regions';
 
 // 상단에서 고른 지역(region)의 공고와 중장년내일센터를 보여 줍니다. 지역이 바뀌면 화면을 새로 그립니다(App 의 key).
@@ -36,8 +36,7 @@ const Home = ({ navigate, region }: { navigate: Navigate; region: Region }) => {
   }, [region.key]);
 
   // 같은 시·군·구의 센터, 없으면 같은 시·도의 센터. 센터가 홈페이지를 만들었으면 그 링크와 운영시간을 붙입니다.
-  const sameArea = NATIONAL_CENTERS.filter((c) => centerRegion(c) === region.key);
-  const centers = (sameArea.length ? sameArea : NATIONAL_CENTERS.filter((c) => c.sido === region.sido.name)).map((c) => {
+  const centers = regionCenters(region).map((c) => {
     const page = centerPages.find((p) => matchCenter(p.name) === c);
     return {
       region: centerRegion(c).split(' ')[1] || c.sido,
@@ -140,7 +139,7 @@ const Home = ({ navigate, region }: { navigate: Navigate; region: Region }) => {
           <div style={{ textAlign: 'center', marginBottom: '40px' }}>
             <h2 className="section-title">우리 지역 중장년내일센터</h2>
             <p className="section-desc">
-              {sameArea.length ? `${region.key}에 있는 센터예요.` : centers.length ? `${region.name}에는 센터가 없어 ${region.sido.name}의 센터를 보여 드려요.` : ''} 직접 방문하거나 전화로 상담받으실 수 있어요
+              {centers[0]?.region === region.name ? `${region.key}에 있는 센터예요.` : centers.length ? `${region.name}에는 센터가 없어 ${region.sido.name}의 센터를 보여 드려요.` : ''} 직접 방문하거나 전화로 상담받으실 수 있어요
             </p>
           </div>
           {centers.length === 0 && (

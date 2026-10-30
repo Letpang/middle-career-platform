@@ -10,7 +10,8 @@ import Admin from './pages/Admin';
 import CenterPage from './pages/CenterPage';
 import ChatWidget from './components/ChatWidget';
 import RegionPicker from './components/RegionPicker';
-import { fetchVisit } from './api';
+import { fetchCenters, fetchVisit } from './api';
+import { centerSlug, matchCenter, regionCenters } from './data/centers';
 import { findRegion } from './data/regions';
 import { loadHomeRegion, saveHomeRegion } from './lib/region';
 import { House as HomeIcon, GraduationCap, Briefcase, User, Link2, MessageCircle, Minus, Plus } from 'lucide-react';
@@ -71,13 +72,6 @@ function App() {
   const [visits, setVisits] = useState<number | null>(null);
   const [region, setRegion] = useState(loadHomeRegion);
 
-  const changeRegion = useCallback((key: string) => {
-    const r = findRegion(key);
-    if (!r) return;
-    setRegion(r);
-    saveHomeRegion(r.key);
-  }, []);
-
   useEffect(() => {
     fetchVisit()
       .then((d) => typeof d.count === 'number' && setVisits(d.count))
@@ -122,6 +116,23 @@ function App() {
     }
     window.scrollTo(0, 0);
   }, []);
+
+  // 센터 홈페이지를 보는 중에 지역을 바꾸면 그 지역 센터 홈페이지로 바로 옮깁니다.
+  const changeRegion = useCallback(
+    (key: string) => {
+      const r = findRegion(key);
+      if (!r) return;
+      setRegion(r);
+      saveHomeRegion(r.key);
+      const center = activeTab === 'center' ? regionCenters(r)[0] : undefined;
+      if (!center) return;
+      fetchCenters()
+        .then((d) => d.items.find((p) => matchCenter(p.name) === center)?.slug)
+        .catch(() => undefined)
+        .then((slug) => navigate('center', { slug: slug || centerSlug(center) }));
+    },
+    [activeTab, navigate],
+  );
 
   const renderContent = () => {
     switch (activeTab) {
