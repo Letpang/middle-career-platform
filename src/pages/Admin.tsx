@@ -208,7 +208,7 @@ const Admin = () => {
             {tab === 'counseling' && (
               <>
                 <div className="filter-row" style={{ marginBottom: '14px' }}>
-                  {['전체', '고양', '파주'].map((c) => (
+                  {['전체', ...Array.from(new Set(requests.map((r) => r.center).filter(Boolean)))].map((c) => (
                     <button key={c} className={`filter-btn ${center === c ? 'active' : ''}`} onClick={() => setCenter(c)}>
                       {c}
                     </button>

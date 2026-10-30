@@ -1,8 +1,9 @@
-import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { CircleCheck, MessageCircle, Phone, PhoneCall, Users, Send, ChevronDown, Info, TriangleAlert } from 'lucide-react';
 import type { Navigate } from '../App';
-import { submitCounseling } from '../api';
+import { fetchCounselCenters, submitCounseling, type CounselCenter } from '../api';
 import { CENTERS } from '../data/links';
+import { findRegion } from '../data/regions';
 import { loadProfile, profileSummary } from '../lib/profile';
 
 const TOPICS = ['이력서 · 자기소개서 클리닉', '면접 준비', '진로 · 재취업 방향 설계', '생애경력설계·재도약', '창업 상담', '디지털 역량 상담', '기타 고민 상담'];
@@ -20,6 +21,38 @@ const FAQ = [
   { q: '컴퓨터 사용이 서툴러도 신청할 수 있나요?', a: '물론입니다. 방문상담을 선택하시거나 지역센터로 바로 전화 주시면 화면 조작 없이도 상담받으실 수 있습니다.' },
 ];
 
+// 상담 받을 센터 하나. 계정이 있는 센터는 id 로 보내 그 센터 이메일로 알림이 갑니다.
+interface CenterOption {
+  key: string; // org:12 | static:파주
+  id: number | null;
+  name: string;
+  group: string; // 시·도
+  phone: string;
+  address: string;
+}
+
+// 승인된 센터 계정(전국) + 아직 계정이 없는 고양·파주 기본 안내
+function centerOptions(registered: CounselCenter[]): CenterOption[] {
+  const known = (name: string) => CENTERS.find((s) => name.includes(s.region));
+  const fromOrgs = registered.map((c) => ({
+    key: `org:${c.id}`,
+    id: c.id,
+    name: c.name,
+    group: findRegion(c.region)?.sido.name || (known(c.name) ? '경기' : '기타'),
+    phone: c.phone || known(c.name)?.phone || '',
+    address: c.address || known(c.name)?.address || '',
+  }));
+  const fallback = CENTERS.filter((s) => !registered.some((c) => c.name.includes(s.region))).map((s) => ({
+    key: `static:${s.region}`,
+    id: null,
+    name: s.centerName,
+    group: '경기',
+    phone: s.phone,
+    address: s.address,
+  }));
+  return [...fromOrgs, ...fallback].sort((a, b) => a.group.localeCompare(b.group, 'ko') || a.name.localeCompare(b.name, 'ko'));
+}
+
 const Counseling = ({ navigate }: { navigate: Navigate }) => {
   const profile = useMemo(() => loadProfile(), []);
   const summary = useMemo(() => profileSummary(profile), [profile]);
@@ -29,10 +62,22 @@ const Counseling = ({ navigate }: { navigate: Navigate }) => {
     return TOPICS.includes(t) ? t : TOPICS[0];
   }, []);
 
-  // 센터 홈페이지에서 오면 ?center=고양 처럼 센터가 정해져 옵니다.
-  const initialCenter = useMemo(() => {
-    const c = new URLSearchParams(window.location.search).get('center') || '';
-    return CENTERS.some((x) => x.region === c) ? c : '파주';
+  // 센터 홈페이지에서 오면 ?center=org:12 처럼 센터가 정해져 옵니다. 그 밖에는 직접 고릅니다.
+  const [options, setOptions] = useState<CenterOption[]>(() => centerOptions([]));
+  const [initialCenter, setInitialCenter] = useState('');
+  useEffect(() => {
+    const want = new URLSearchParams(window.location.search).get('center') || '';
+    const pick = (opts: CenterOption[]) => opts.find((o) => o.key === want || o.name.includes(want))?.key || '';
+    fetchCounselCenters()
+      .then((d) => {
+        const opts = centerOptions(d.items);
+        setOptions(opts);
+        if (want) {
+          setInitialCenter(pick(opts));
+          setForm((f) => (f.center ? f : { ...f, center: pick(opts) }));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const blank = () => ({
@@ -54,6 +99,8 @@ const Counseling = ({ navigate }: { navigate: Navigate }) => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const phoneBlocked = form.method === '전화상담' && !hasProfile;
+  const selected = options.find((o) => o.key === form.center);
+  const groups = Array.from(new Set(options.map((o) => o.group)));
 
   const onChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -67,7 +114,7 @@ const Counseling = ({ navigate }: { navigate: Navigate }) => {
     setError(undefined);
     try {
       await submitCounseling({
-        center: form.center,
+        ...(selected?.id ? { center_id: selected.id } : { center: selected?.name || '' }),
         name: form.name,
         phone: form.phone,
         topic: form.topic,
@@ -85,7 +132,6 @@ const Counseling = ({ navigate }: { navigate: Navigate }) => {
     }
   };
 
-  const center = CENTERS.find((c) => c.region === form.center);
 
   return (
     <div className="fade-in">
@@ -123,7 +169,7 @@ const Counseling = ({ navigate }: { navigate: Navigate }) => {
                 </div>
                 <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '10px' }}>상담 신청이 접수되었습니다</h2>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                  {form.name}님, 신청해 주셔서 감사합니다. 영업일 기준 1~2일 이내에 {center?.centerName} 상담사가 <strong style={{ color: 'var(--text-primary)' }}>{form.phone}</strong>로 연락드리겠습니다.
+                  {form.name}님, 신청해 주셔서 감사합니다. 영업일 기준 1~2일 이내에 {selected?.name} 상담사가 <strong style={{ color: 'var(--text-primary)' }}>{form.phone}</strong>로 연락드리겠습니다.
                 </p>
                 <button
                   className="btn btn-secondary"
@@ -144,14 +190,24 @@ const Counseling = ({ navigate }: { navigate: Navigate }) => {
                 </div>
                 <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   <div className="field">
-                    <span className="field-label">상담 받을 센터</span>
-                    <div className="filter-row">
-                      {CENTERS.map((c) => (
-                        <button type="button" key={c.region} className={`filter-btn ${form.center === c.region ? 'active' : ''}`} onClick={() => setForm((f) => ({ ...f, center: c.region }))}>
-                          {c.region} ({c.phone})
-                        </button>
+                    <label htmlFor="c-center">상담 받을 센터</label>
+                    <select id="c-center" name="center" value={form.center} onChange={onChange} required>
+                      <option value="">가까운 중장년내일센터를 골라 주세요</option>
+                      {groups.map((g) => (
+                        <optgroup key={g} label={g}>
+                          {options
+                            .filter((o) => o.group === g)
+                            .map((o) => (
+                              <option key={o.key} value={o.key}>
+                                {o.name}
+                              </option>
+                            ))}
+                        </optgroup>
                       ))}
-                    </div>
+                    </select>
+                    {selected && (selected.address || selected.phone) && (
+                      <span className="field-hint">{[selected.address, selected.phone].filter(Boolean).join(' · ')}</span>
+                    )}
                   </div>
 
                   <div className="form-grid">
@@ -279,11 +335,19 @@ const Counseling = ({ navigate }: { navigate: Navigate }) => {
               <h3>급하신가요? 바로 전화 주세요</h3>
               <p>인터넷 신청이 어려우시면 아래 번호로 바로 전화 주셔도 상담 예약을 도와드립니다.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary)' }}>
-                {CENTERS.map((c) => (
-                  <a key={c.region} href={`tel:${c.phone}`}>
-                    {c.region}센터 {c.phone}
+                {selected?.phone ? (
+                  <a href={`tel:${selected.phone}`}>
+                    {selected.name} {selected.phone}
                   </a>
-                ))}
+                ) : (
+                  options
+                    .filter((o) => o.phone)
+                    .map((o) => (
+                      <a key={o.key} href={`tel:${o.phone}`}>
+                        {o.name} {o.phone}
+                      </a>
+                    ))
+                )}
               </div>
             </div>
 

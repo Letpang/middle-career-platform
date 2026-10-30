@@ -162,6 +162,7 @@ async function orgRoutes(env: Env, req: Request, path: string): Promise<Response
     };
     // 중장년내일센터는 상담 신청 알림을 이 이메일로 받습니다.
     if (org.org_type === CENTER_TYPE && !org.email) throw new HttpError(400, '중장년내일센터는 상담 신청을 받을 이메일을 입력해 주세요.');
+    if (org.org_type === CENTER_TYPE && !findRegion(org.region)) throw new HttpError(400, '중장년내일센터는 지역(시·도, 시·군·구)을 골라 주세요.');
     if (org.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(org.email)) throw new HttpError(400, '이메일 주소를 정확히 입력해 주세요.');
     const exists = await env.DB.prepare('SELECT 1 FROM orgs WHERE login_id = ?').bind(loginId).first();
     if (exists) throw new HttpError(409, '이미 사용 중인 아이디입니다.');
@@ -417,9 +418,7 @@ async function publicCenter(env: Env, slug: string) {
       .bind(c.org_id)
       .all(),
   ]);
-  const { org_id: _orgId, ...center } = c;
-  void _orgId;
-  return json({ center: { ...center, services: JSON.parse(c.services) }, programs: programs.results, posts: posts.results });
+  return json({ center: { ...c, services: JSON.parse(c.services) }, programs: programs.results, posts: posts.results });
 }
 
 // ─── 센터 관리자 ─────────────────────────────────────────
@@ -507,18 +506,28 @@ async function adminRoutes(env: Env, req: Request, path: string): Promise<Respon
 // ─── 상담 신청 ───────────────────────────────────────────
 
 const COUNSEL_METHODS = ['전화상담', '방문상담'] as const;
-const CENTERS = ['고양', '파주'] as const;
 
-// 상담 신청이 들어오면 그 지역 중장년내일센터 계정의 이메일로 알립니다. 실패해도 신청은 저장됩니다.
-async function notifyCenter(env: Env, r: Record<string, string>) {
-  if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) return;
+// 상담 신청 화면의 센터 목록: 승인된 중장년내일센터 계정 (전국)
+async function counselCenters(env: Env) {
   const { results } = await env.DB.prepare(
-    `SELECT name, email FROM orgs WHERE org_type = ? AND status = 'approved' AND region = ? AND email <> ''`,
+    `SELECT o.id, o.name, o.region, c.slug, c.phone, c.address
+       FROM orgs o LEFT JOIN center_pages c ON c.org_id = o.id AND c.published = 1
+      WHERE o.org_type = ? AND o.status = 'approved'
+      ORDER BY o.name`,
   )
-    .bind(CENTER_TYPE, r.center)
+    .bind(CENTER_TYPE)
+    .all();
+  return json({ items: results });
+}
+
+// 상담 신청이 들어오면 고른 센터 계정의 이메일로 알립니다. 실패해도 신청은 저장됩니다.
+async function notifyCenter(env: Env, orgId: number | null, r: Record<string, string>) {
+  if (!orgId || !env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) return;
+  const { results } = await env.DB.prepare(`SELECT name, email FROM orgs WHERE id = ? AND email <> ''`)
+    .bind(orgId)
     .all<{ name: string; email: string }>();
   const text = [
-    `${r.center} 센터로 새 상담 신청이 들어왔습니다.`,
+    `${r.center}로 새 상담 신청이 들어왔습니다.`,
     '',
     `이름: ${r.name}`,
     `연락처: ${r.phone}`,
@@ -528,7 +537,7 @@ async function notifyCenter(env: Env, r: Record<string, string>) {
     r.message && `\n남긴 말:\n${r.message}`,
     r.profile_summary && `\n프로필 요약:\n${r.profile_summary}`,
     '',
-    '전체 신청 목록은 커리어 브릿지 「센터 관리자」 화면의 「상담 신청」에서 볼 수 있습니다.',
+    '신청한 분께 직접 연락해 주세요.',
   ]
     .filter((l) => l !== '')
     .join('\n');
@@ -558,8 +567,20 @@ async function createCounseling(env: Env, req: Request, ctx: ExecutionContext) {
   }
   const phone = str(b, 'phone', 30, true, '연락처');
   if (!/^[0-9-+() ]{8,20}$/.test(phone)) throw new HttpError(400, '연락처를 숫자로 정확히 입력해 주세요.');
+  // center_id 가 오면 승인된 센터 계정, 아니면 계정 없는 센터 이름(예: 파주)을 그대로 적습니다.
+  let orgId: number | null = null;
+  let center = str(b, 'center', 60);
+  if (b.center_id != null) {
+    const org = await env.DB.prepare(`SELECT id, name FROM orgs WHERE id = ? AND org_type = ? AND status = 'approved'`)
+      .bind(Number(b.center_id), CENTER_TYPE)
+      .first<{ id: number; name: string }>();
+    if (!org) throw new HttpError(400, '상담 받을 센터를 다시 골라 주세요.');
+    orgId = org.id;
+    center = org.name;
+  }
+  if (!center) throw new HttpError(400, '상담 받을 센터를 골라 주세요.');
   const r = {
-    center: oneOf(str(b, 'center', 10), CENTERS, '파주'),
+    center,
     name: str(b, 'name', 40, true, '이름'),
     phone,
     topic: str(b, 'topic', 60),
@@ -569,12 +590,12 @@ async function createCounseling(env: Env, req: Request, ctx: ExecutionContext) {
     profile_summary: profileSummary,
   };
   await env.DB.prepare(
-    `INSERT INTO counseling_requests (center, name, phone, topic, method, preferred_time, message, profile_summary)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO counseling_requests (center, org_id, name, phone, topic, method, preferred_time, message, profile_summary)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(r.center, r.name, r.phone, r.topic, r.method, r.preferred_time, r.message, r.profile_summary)
+    .bind(r.center, orgId, r.name, r.phone, r.topic, r.method, r.preferred_time, r.message, r.profile_summary)
     .run();
-  ctx.waitUntil(notifyCenter(env, r));
+  ctx.waitUntil(notifyCenter(env, orgId, r));
   return json({ ok: true });
 }
 
@@ -685,6 +706,7 @@ async function handleApi(req: Request, env: Env, ctx: ExecutionContext): Promise
     }
     return publicCenter(env, slug);
   }
+  if (path === '/api/counsel-centers' && req.method === 'GET') return counselCenters(env);
   if (path === '/api/counseling' && req.method === 'POST') return createCounseling(env, req, ctx);
   if (path === '/api/chat' && req.method === 'POST') return chat(env, req);
 

@@ -3,7 +3,6 @@ import { Building2, CalendarDays, Clock, ExternalLink, GraduationCap, Briefcase,
 import type { Navigate } from '../App';
 import { fetchCenter, fetchJobs, type CenterPost, type Job } from '../api';
 import { findRegion } from '../data/regions';
-import { CENTERS } from '../data/links';
 import ProgramCard from '../components/ProgramCard';
 import JobCard from '../components/JobCard';
 
@@ -113,8 +112,6 @@ const CenterPage = ({ navigate }: { navigate: Navigate }) => {
   const notices = posts.filter((p) => p.kind === 'notice');
   const jobPosts = posts.filter((p) => p.kind === 'job');
   const mapUrl = center.map_url || (center.address ? `https://map.naver.com/p/search/${encodeURIComponent(center.address)}` : '');
-  // 상담 신청 화면은 고양·파주 센터만 고를 수 있어 그 센터일 때만 미리 골라 둡니다.
-  const counselCenter = CENTERS.find((c) => center.name.includes(c.region))?.region;
   const goJobs = (query: Record<string, string> = {}) => navigate('jobs', region ? { region: region.key, ...query } : query);
 
   return (
@@ -134,7 +131,7 @@ const CenterPage = ({ navigate }: { navigate: Navigate }) => {
                 <Phone size={16} /> {center.phone}
               </a>
             )}
-            <button className="btn btn-secondary" onClick={() => navigate('counseling', counselCenter ? { center: counselCenter } : undefined)}>
+            <button className="btn btn-secondary" onClick={() => navigate('counseling', { center: `org:${center.org_id}` })}>
               <MessageCircle size={16} /> 1:1 상담 신청
             </button>
           </div>
