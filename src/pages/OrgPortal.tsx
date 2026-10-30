@@ -3,6 +3,7 @@ import { LogOut, Plus, Pencil, Trash2, Clock, Ban, School, Eye, EyeOff } from 'l
 import { orgApi, ApiError, type Org, type Program } from '../api';
 import { ORG_TYPES, PROGRAM_REGIONS } from '../data/programs';
 import { SIDO } from '../data/regions';
+import { NATIONAL_CENTERS, centerRegion } from '../data/centers';
 import ProgramForm, { emptyDraft, type ProgramDraft } from '../components/ProgramForm';
 import CenterEditor from '../components/CenterEditor';
 import { formatRange, programStatus } from '../components/ProgramCard';
@@ -54,7 +55,13 @@ const RegisterForm = ({ onDone }: { onDone: () => void }) => {
   const [busy, setBusy] = useState(false);
 
   const set = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((p) => ({ ...p, [e.target.name]: e.target.value }));
-  const isCenter = f.org_type === '중장년내일센터';
+  // 먼저 중장년내일센터인지 교육기관인지 고릅니다. 센터는 명단에서 고르고, 교육기관은 이름을 직접 씁니다.
+  const [kind, setKind] = useState<'center' | 'edu' | null>(null);
+  const isCenter = kind === 'center';
+  const chooseKind = (k: 'center' | 'edu') => {
+    setKind(k);
+    setF((p) => ({ ...p, org_type: k === 'center' ? '중장년내일센터' : '', name: '', region: '' }));
+  };
   // 중장년내일센터는 전국에서 신청하므로 지역을 '경기 고양시'처럼 시·도와 시·군·구로 받습니다.
   const [sidoName, areaName] = isCenter ? f.region.split(' ') : [];
   const areas = SIDO.find((x) => x.name === sidoName)?.areas || [];
@@ -81,98 +88,139 @@ const RegisterForm = ({ onDone }: { onDone: () => void }) => {
 
   return (
     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div className="form-grid">
-        <div className="field full">
-          <label htmlFor="r-name">기관명 *</label>
-          <input id="r-name" name="name" value={f.name} onChange={set} required maxLength={80} placeholder="예: ○○대학교 평생교육원" />
+      <div className="field">
+        <span className="field-label">어떤 기관인가요? *</span>
+        <div className="filter-row">
+          <button type="button" className={`filter-btn ${kind === 'center' ? 'active' : ''}`} onClick={() => chooseKind('center')}>
+            중장년내일센터
+          </button>
+          <button type="button" className={`filter-btn ${kind === 'edu' ? 'active' : ''}`} onClick={() => chooseKind('edu')}>
+            교육기관
+          </button>
         </div>
-        <div className="field">
-          <label htmlFor="r-type">기관 유형</label>
-          <select id="r-type" name="org_type" value={f.org_type} onChange={(e) => setF((p) => ({ ...p, org_type: e.target.value, region: '' }))}>
-            <option value="">선택</option>
-            {ORG_TYPES.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="r-region">지역{isCenter && ' *'}</label>
-          {isCenter ? (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <select
-                id="r-region"
-                aria-label="시·도"
-                value={sidoName || ''}
-                required
-                onChange={(e) => {
-                  const sd = SIDO.find((x) => x.name === e.target.value);
-                  setF((p) => ({ ...p, region: sd ? `${sd.name} ${sd.areas[0][1]}` : '' }));
-                }}
-              >
-                <option value="">시·도</option>
-                {SIDO.map((x) => (
-                  <option key={x.name}>{x.name}</option>
-                ))}
-              </select>
-              {sidoName && (
-                <select aria-label="시·군·구" value={areaName} onChange={(e) => setF((p) => ({ ...p, region: `${sidoName} ${e.target.value}` }))}>
-                  {areas.map(([code, name]) => (
-                    <option key={code} value={name}>
-                      {name}
-                    </option>
+      </div>
+      {kind && (
+        <>
+          <div className="form-grid">
+            <div className="field full">
+              <label htmlFor="r-name">기관명 *</label>
+              {isCenter ? (
+                // 중장년내일센터는 전국 28개소 명단에서 고릅니다. 고르면 지역도 채워집니다.
+                <select
+                  id="r-name"
+                  value={f.name}
+                  required
+                  onChange={(e) => {
+                    const c = NATIONAL_CENTERS.find((x) => x.name === e.target.value);
+                    setF((p) => ({ ...p, name: e.target.value, region: c ? centerRegion(c) : '' }));
+                  }}
+                >
+                  <option value="">센터를 골라 주세요</option>
+                  {Array.from(new Set(NATIONAL_CENTERS.map((c) => c.sido))).map((sd) => (
+                    <optgroup key={sd} label={sd}>
+                      {NATIONAL_CENTERS.filter((c) => c.sido === sd).map((c) => (
+                        <option key={c.name} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              ) : (
+                <input id="r-name" name="name" value={f.name} onChange={set} required maxLength={80} placeholder="예: ○○대학교 평생교육원" />
+              )}
+            </div>
+            {!isCenter && (
+              <div className="field">
+                <label htmlFor="r-type">기관 유형</label>
+                <select id="r-type" name="org_type" value={f.org_type} onChange={set}>
+                  <option value="">선택</option>
+                  {ORG_TYPES.filter((t) => t !== '중장년내일센터').map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="field">
+              <label htmlFor="r-region">지역{isCenter && ' *'}</label>
+              {isCenter ? (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    id="r-region"
+                    aria-label="시·도"
+                    value={sidoName || ''}
+                    required
+                    onChange={(e) => {
+                      const sd = SIDO.find((x) => x.name === e.target.value);
+                      setF((p) => ({ ...p, region: sd ? `${sd.name} ${sd.areas[0][1]}` : '' }));
+                    }}
+                  >
+                    <option value="">시·도</option>
+                    {SIDO.map((x) => (
+                      <option key={x.name}>{x.name}</option>
+                    ))}
+                  </select>
+                  {sidoName && (
+                    <select aria-label="시·군·구" value={areaName} onChange={(e) => setF((p) => ({ ...p, region: `${sidoName} ${e.target.value}` }))}>
+                      {areas.map(([code, name]) => (
+                        <option key={code} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              ) : (
+                <select id="r-region" name="region" value={f.region} onChange={set}>
+                  <option value="">선택</option>
+                  {PROGRAM_REGIONS.map((r) => (
+                    <option key={r}>{r}</option>
                   ))}
                 </select>
               )}
             </div>
-          ) : (
-            <select id="r-region" name="region" value={f.region} onChange={set}>
-              <option value="">선택</option>
-              {PROGRAM_REGIONS.map((r) => (
-                <option key={r}>{r}</option>
-              ))}
-            </select>
-          )}
-        </div>
-        <div className="field">
-          <label htmlFor="r-manager">담당자 이름 *</label>
-          <input id="r-manager" name="manager" value={f.manager} onChange={set} required maxLength={40} />
-        </div>
-        <div className="field">
-          <label htmlFor="r-phone">담당자 연락처 *</label>
-          <input id="r-phone" name="phone" value={f.phone} onChange={set} required maxLength={40} placeholder="031-000-0000" />
-        </div>
-        <div className="field">
-          <label htmlFor="r-email">이메일{isCenter && ' *'}</label>
-          <input id="r-email" type="email" name="email" value={f.email} onChange={set} maxLength={100} required={isCenter} />
-          {isCenter && <span className="field-hint">이 지역 상담 신청이 들어오면 이 주소로 알려 드려요</span>}
-        </div>
-        <div className="field">
-          <label htmlFor="r-home">기관 홈페이지</label>
-          <input id="r-home" type="url" name="homepage" value={f.homepage} onChange={set} maxLength={500} placeholder="https://" />
-        </div>
-        <div className="field">
-          <label htmlFor="r-id">사용할 아이디 *</label>
-          <input id="r-id" name="login_id" value={f.login_id} onChange={set} required minLength={4} maxLength={30} pattern="[a-zA-Z0-9_.\-]+" autoComplete="username" />
-          <span className="field-hint">영문·숫자 4~30자</span>
-        </div>
-        <div className="field" />
-        <div className="field">
-          <label htmlFor="r-pw">비밀번호 *</label>
-          <input id="r-pw" type="password" name="password" value={f.password} onChange={set} required minLength={8} autoComplete="new-password" />
-          <span className="field-hint">8자 이상</span>
-        </div>
-        <div className="field">
-          <label htmlFor="r-pw2">비밀번호 확인 *</label>
-          <input id="r-pw2" type="password" name="password2" value={f.password2} onChange={set} required minLength={8} autoComplete="new-password" />
-        </div>
-      </div>
-      <label className="check-toggle">
-        <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} required /> 담당자 이름·연락처·이메일을 기관 확인과 연락 목적으로 수집·이용하는 데 동의합니다 (필수)
-      </label>
-      {error && <div className="notice notice-error">{error}</div>}
-      <button type="submit" className="btn btn-primary" disabled={busy || !agree} style={{ alignSelf: 'flex-start' }}>
-        {busy ? '신청하는 중...' : '기관 계정 신청하기'}
-      </button>
+            <div className="field">
+              <label htmlFor="r-manager">담당자 이름 *</label>
+              <input id="r-manager" name="manager" value={f.manager} onChange={set} required maxLength={40} />
+            </div>
+            <div className="field">
+              <label htmlFor="r-phone">담당자 연락처 *</label>
+              <input id="r-phone" name="phone" value={f.phone} onChange={set} required maxLength={40} placeholder="031-000-0000" />
+            </div>
+            <div className="field">
+              <label htmlFor="r-email">이메일{isCenter && ' *'}</label>
+              <input id="r-email" type="email" name="email" value={f.email} onChange={set} maxLength={100} required={isCenter} />
+              {isCenter && <span className="field-hint">이 지역 상담 신청이 들어오면 이 주소로 알려 드려요</span>}
+            </div>
+            <div className="field">
+              <label htmlFor="r-home">기관 홈페이지</label>
+              <input id="r-home" type="url" name="homepage" value={f.homepage} onChange={set} maxLength={500} placeholder="https://" />
+            </div>
+            <div className="field">
+              <label htmlFor="r-id">사용할 아이디 *</label>
+              <input id="r-id" name="login_id" value={f.login_id} onChange={set} required minLength={4} maxLength={30} pattern="[a-zA-Z0-9_.\-]+" autoComplete="username" />
+              <span className="field-hint">영문·숫자 4~30자</span>
+            </div>
+            <div className="field" />
+            <div className="field">
+              <label htmlFor="r-pw">비밀번호 *</label>
+              <input id="r-pw" type="password" name="password" value={f.password} onChange={set} required minLength={8} autoComplete="new-password" />
+              <span className="field-hint">8자 이상</span>
+            </div>
+            <div className="field">
+              <label htmlFor="r-pw2">비밀번호 확인 *</label>
+              <input id="r-pw2" type="password" name="password2" value={f.password2} onChange={set} required minLength={8} autoComplete="new-password" />
+            </div>
+          </div>
+          <label className="check-toggle">
+            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} required /> 담당자 이름·연락처·이메일을 기관 확인과 연락 목적으로 수집·이용하는 데 동의합니다 (필수)
+          </label>
+          {error && <div className="notice notice-error">{error}</div>}
+          <button type="submit" className="btn btn-primary" disabled={busy || !agree} style={{ alignSelf: 'flex-start' }}>
+            {busy ? '신청하는 중...' : '기관 계정 신청하기'}
+          </button>
+        </>
+      )}
     </form>
   );
 };
@@ -238,7 +286,7 @@ const OrgPortal = () => {
         <div className="container">
           <h1 className="page-title">교육기관 등록·관리</h1>
           <p className="page-subtitle">
-            기관 계정을 신청하시면 센터 승인 후 교육과정과 채용행사를 직접 등록하고 수정할 수 있습니다. 기관 유형을 「중장년내일센터」로 신청하면 센터 홈페이지도 만들 수 있어요.
+            기관 계정을 신청하시면 센터 승인 후 교육과정과 채용행사를 직접 등록하고 수정할 수 있습니다. 「중장년내일센터」로 신청하면 센터 홈페이지도 만들 수 있어요.
           </p>
         </div>
       </div>

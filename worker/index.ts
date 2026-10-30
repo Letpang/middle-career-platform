@@ -4,6 +4,7 @@
 import { listJobs, listRegionJobs, getJobDetail, Work24Error } from './work24';
 import { hashPassword, verifyPassword, verifyAdminPassword, createSession, getSession, destroySession } from './auth';
 import { findRegion } from '../src/data/regions';
+import { NATIONAL_CENTERS } from '../src/data/centers';
 import { WorkerMailer } from 'worker-mailer';
 
 export interface Env {
@@ -162,6 +163,7 @@ async function orgRoutes(env: Env, req: Request, path: string): Promise<Response
     };
     // 중장년내일센터는 상담 신청 알림을 이 이메일로 받습니다.
     if (org.org_type === CENTER_TYPE && !org.email) throw new HttpError(400, '중장년내일센터는 상담 신청을 받을 이메일을 입력해 주세요.');
+    if (org.org_type === CENTER_TYPE && !NATIONAL_CENTERS.some((c) => c.name === org.name)) throw new HttpError(400, '중장년내일센터는 명단에서 센터를 골라 주세요.');
     if (org.org_type === CENTER_TYPE && !findRegion(org.region)) throw new HttpError(400, '중장년내일센터는 지역(시·도, 시·군·구)을 골라 주세요.');
     if (org.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(org.email)) throw new HttpError(400, '이메일 주소를 정확히 입력해 주세요.');
     const exists = await env.DB.prepare('SELECT 1 FROM orgs WHERE login_id = ?').bind(loginId).first();
