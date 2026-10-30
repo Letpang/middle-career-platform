@@ -107,7 +107,7 @@ const Home = ({ navigate, region }: { navigate: Navigate; region: Region }) => {
             <h2 className="section-title">핵심 제공 서비스</h2>
             <p className="section-desc">성공적인 재취업 준비를 위한 4가지 서비스</p>
           </div>
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
+          <div className="grid services-grid">
             {services.map(({ icon: Icon, title, desc, link, tab, onClick, extra }) => (
               <div className="card" key={title}>
                 <div className="card-icon-container">
