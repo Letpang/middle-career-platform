@@ -3,7 +3,7 @@
 // 상담 신청 화면에서 아직 계정이 없는 센터도 고를 수 있게 씁니다. 계정이 있으면 그 계정이 대신 나옵니다.
 // sido 는 regions.ts 의 시·도 이름에 맞춥니다 (광주·전남 → 전남광주).
 
-import { SIDO } from './regions';
+import { SIDO, type Region } from './regions';
 
 export interface NationalCenter {
   sido: string;
@@ -68,3 +68,9 @@ export const CENTER_SERVICES = [
   { title: '1:1 전직지원 상담', target: '40세 이상 구직자', desc: '전담 컨설턴트가 6개월 동안 상담과 취업 알선을 도와드립니다. 모든 서비스는 무료입니다.' },
   { title: '기업 인재 추천', target: '중장년을 채용하려는 기업', desc: '구인 신청을 받아 경력과 조건에 맞는 중장년 인재를 추천해 드립니다.' },
 ];
+
+// 우리 지역 센터: 같은 시·군·구의 센터, 없으면 같은 시·도의 센터. 홈과 상단 지역 버튼이 함께 씁니다.
+export function regionCenters(region: Region): NationalCenter[] {
+  const sameArea = NATIONAL_CENTERS.filter((c) => centerRegion(c) === region.key);
+  return sameArea.length ? sameArea : NATIONAL_CENTERS.filter((c) => c.sido === region.sido.name);
+}
