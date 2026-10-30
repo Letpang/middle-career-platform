@@ -139,6 +139,10 @@ export const fetchPrograms = (kind: ProgramKind) => get<{ items: Program[] }>(`/
 // 상담 신청
 export const submitCounseling = (body: Record<string, unknown>) => post<{ ok: true }>('/api/counseling', body);
 
+// 사이트 이름 (센터 관리자가 바꿀 수 있음)
+export const DEFAULT_SITE_NAME = '커리어 브릿지';
+export const fetchSettings = () => get<{ siteName: string }>('/api/settings');
+
 // 방문자 수 · AI
 export const fetchVisit = () => get<{ count: number | null }>('/api/visit');
 export const askChat = (message: string, history: { role: string; text: string }[]) =>
@@ -161,6 +165,7 @@ export const adminApi = {
   login: (password: string) => post<{ ok: true }>('/api/admin/login', { password }),
   logout: () => post<{ ok: true }>('/api/admin/logout', {}),
   me: () => get<{ ok: true }>('/api/admin/me'),
+  setSiteName: (siteName: string) => post<{ siteName: string }>('/api/admin/settings', { siteName }),
   orgs: () => get<{ items: Org[] }>('/api/admin/orgs'),
   setOrgStatus: (id: number, status: Org['status'], note = '') => post<{ ok: true }>(`/api/admin/orgs/${id}/status`, { status, note }),
   programs: () => get<{ items: (Pick<Program, 'id' | 'kind' | 'title' | 'start_date' | 'end_date' | 'visible' | 'updated_at'> & { org_name: string })[] }>('/api/admin/programs'),

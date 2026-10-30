@@ -4,7 +4,7 @@ import { adminApi, ApiError, type CounselingRequest, type Org } from '../api';
 import { formatRange } from '../components/ProgramCard';
 
 type AdminProgram = Awaited<ReturnType<typeof adminApi.programs>>['items'][number];
-type TabKey = 'orgs' | 'counseling' | 'programs';
+type TabKey = 'orgs' | 'counseling' | 'programs' | 'settings';
 
 const ORG_STATUS: Record<Org['status'], { label: string; tone: string }> = {
   pending: { label: '승인 대기', tone: 'warn' },
@@ -21,7 +21,7 @@ function when(s?: string | null) {
   return isNaN(d.getTime()) ? s : d.toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-const Admin = () => {
+const Admin = ({ siteName, onSiteNameChange }: { siteName: string; onSiteNameChange: (name: string) => void }) => {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [pw, setPw] = useState('');
   const [loginError, setLoginError] = useState<string>();
@@ -32,6 +32,23 @@ const Admin = () => {
   const [programs, setPrograms] = useState<AdminProgram[]>([]);
   const [center, setCenter] = useState('전체');
   const [error, setError] = useState<string>();
+  const [nameDraft, setNameDraft] = useState(siteName);
+  const [nameSaved, setNameSaved] = useState(false);
+
+  useEffect(() => setNameDraft(siteName), [siteName]);
+
+  const saveSiteName = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(undefined);
+    setNameSaved(false);
+    try {
+      const res = await adminApi.setSiteName(nameDraft);
+      onSiteNameChange(res.siteName);
+      setNameSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '저장하지 못했습니다.');
+    }
+  };
 
   const loadAll = useCallback(async () => {
     setError(undefined);
@@ -130,6 +147,9 @@ const Admin = () => {
               </button>
               <button className={`tab ${tab === 'programs' ? 'active' : ''}`} onClick={() => setTab('programs')}>
                 등록 교육·행사 ({programs.length})
+              </button>
+              <button className={`tab ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>
+                사이트 설정
               </button>
             </div>
 
@@ -316,6 +336,32 @@ const Admin = () => {
                   </tbody>
                 </table>
               </div>
+            )}
+
+            {tab === 'settings' && (
+              <form onSubmit={saveSiteName} className="panel" style={{ maxWidth: '520px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="field">
+                  <label htmlFor="a-site-name">사이트 이름</label>
+                  <input
+                    id="a-site-name"
+                    value={nameDraft}
+                    onChange={(e) => {
+                      setNameDraft(e.target.value);
+                      setNameSaved(false);
+                    }}
+                    maxLength={30}
+                    required
+                    placeholder="예: 고양상공회의소 중장년내일센터"
+                  />
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    맨 위 로고, 브라우저 탭 제목, 메인 화면, 맨 아래 안내, AI 도우미 인사말에 이 이름이 나옵니다.
+                  </span>
+                </div>
+                {nameSaved && <div className="notice notice-success">저장했습니다. 모든 방문자에게 바로 바뀐 이름이 보입니다.</div>}
+                <button type="submit" className="btn btn-primary" disabled={!nameDraft.trim() || nameDraft.trim() === siteName} style={{ alignSelf: 'flex-start' }}>
+                  저장
+                </button>
+              </form>
             )}
           </>
         )}
