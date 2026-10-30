@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Briefcase, GraduationCap, ArrowRight, Award, Compass, Heart, MessageCircle, UserCheck, MapPin, Phone, Clock, Building2, School } from 'lucide-react';
 import type { Navigate } from '../App';
-import { fetchJobs, fetchPrograms, type Job } from '../api';
+import { fetchCenters, fetchJobs, fetchPrograms, type CenterSummary, type Job } from '../api';
 import JobTrends, { TREND_REGIONS } from '../components/JobTrends';
 import { loadProfile } from '../lib/profile';
 import { CENTERS } from '../data/links';
@@ -13,6 +13,7 @@ const Home = ({ navigate }: { navigate: Navigate }) => {
   const [trendRegion] = useState(() => TREND_REGIONS.find((r) => r === loadProfile()?.region) || TREND_REGIONS[0]);
   const [courseCount, setCourseCount] = useState<number | null>(null);
   const [eventCount, setEventCount] = useState<number | null>(null);
+  const [centerPages, setCenterPages] = useState<CenterSummary[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -24,6 +25,9 @@ const Home = ({ navigate }: { navigate: Navigate }) => {
       .catch(() => {});
     fetchPrograms('event')
       .then((d) => alive && setEventCount(d.items.length))
+      .catch(() => {});
+    fetchCenters()
+      .then((d) => alive && setCenterPages(d.items))
       .catch(() => {});
     return () => {
       alive = false;
@@ -96,13 +100,19 @@ const Home = ({ navigate }: { navigate: Navigate }) => {
             <p className="section-desc">가까운 센터에 직접 방문하거나 전화로 상담받으실 수 있어요</p>
           </div>
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
-            {CENTERS.map((c) => (
-              <div key={c.region} className="card" style={{ flexDirection: 'row', gap: '16px', alignItems: 'flex-start' }}>
+            {[
+              // 고양·파주는 기본 안내를 보여 주고, 센터가 홈페이지를 만들었으면 그 링크를 붙입니다.
+              ...CENTERS.map((c) => ({ ...c, slug: centerPages.find((p) => p.name.includes(c.region))?.slug })),
+              ...centerPages
+                .filter((p) => !CENTERS.some((c) => p.name.includes(c.region)))
+                .map((p) => ({ region: p.region, centerName: p.name, address: p.address, phone: p.phone, hours: p.hours, slug: p.slug })),
+            ].map((c) => (
+              <div key={c.slug || c.region} className="card" style={{ flexDirection: 'row', gap: '16px', alignItems: 'flex-start' }}>
                 <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '48px', height: '48px', borderRadius: '12px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)' }}>
                   <Building2 size={22} />
                 </div>
                 <div style={{ flex: '1 1 auto' }}>
-                  <span className="badge badge-secondary">{c.region}</span>
+                  {c.region && <span className="badge badge-secondary">{c.region}</span>}
                   <h3 style={{ fontSize: '1.05rem', marginTop: '6px', marginBottom: '10px' }}>{c.centerName}</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -115,6 +125,11 @@ const Home = ({ navigate }: { navigate: Navigate }) => {
                       <Clock size={14} /> {c.hours}
                     </div>
                   </div>
+                  {c.slug && (
+                    <button className="card-link" style={{ marginTop: '12px' }} onClick={() => navigate('center', { slug: c.slug! })}>
+                      센터 홈페이지 <ArrowRight size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

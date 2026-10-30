@@ -7,11 +7,12 @@ import Counseling from './pages/Counseling';
 import Profile from './pages/Profile';
 import OrgPortal from './pages/OrgPortal';
 import Admin from './pages/Admin';
+import CenterPage from './pages/CenterPage';
 import ChatWidget from './components/ChatWidget';
 import { fetchVisit } from './api';
 import { House as HomeIcon, GraduationCap, Briefcase, User, Link2, MessageCircle, Minus, Plus } from 'lucide-react';
 
-export type Tab = 'home' | 'jobs' | 'education' | 'counseling' | 'profile' | 'org' | 'admin';
+export type Tab = 'home' | 'jobs' | 'education' | 'counseling' | 'profile' | 'org' | 'admin' | 'center';
 export type Navigate = (tab: Tab, query?: Record<string, string>) => void;
 
 const PATHS: Record<Tab, string> = {
@@ -22,6 +23,7 @@ const PATHS: Record<Tab, string> = {
   profile: '/profile',
   org: '/org',
   admin: '/admin',
+  center: '/center', // 실제 주소는 /center/<slug> — navigate('center', { slug })
 };
 
 const TITLES: Record<Tab, string> = {
@@ -32,11 +34,13 @@ const TITLES: Record<Tab, string> = {
   profile: '내 커리어 프로필 | 커리어 브릿지',
   org: '교육기관 등록 | 커리어 브릿지',
   admin: '센터 관리자 | 커리어 브릿지',
+  center: '중장년내일센터 | 커리어 브릿지',
 };
 
 const FONT_SIZES = ['16px', '18px', '20px'];
 
 function tabFromPath(pathname: string): Tab {
+  if (pathname.startsWith('/center/')) return 'center';
   const hit = (Object.entries(PATHS) as [Tab, string][]).find(([, p]) => p === pathname.replace(/\/+$/, '') || (p === '/' && pathname === '/'));
   return hit ? hit[0] : 'home';
 }
@@ -51,6 +55,8 @@ const NAV: { tab: Tab; label: string; icon: typeof HomeIcon }[] = [
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>(() => tabFromPath(window.location.pathname));
+  // 센터 홈페이지끼리 옮겨 다닐 때 화면을 새로 그리도록 주소를 함께 기억합니다.
+  const [pathKey, setPathKey] = useState(() => window.location.pathname);
   const [fontStep, setFontStep] = useState<number>(() => {
     try {
       const v = Number(localStorage.getItem('career_bridge_font'));
@@ -81,15 +87,21 @@ function App() {
   }, [activeTab]);
 
   useEffect(() => {
-    const onPop = () => setActiveTab(tabFromPath(window.location.pathname));
+    const onPop = () => {
+      setActiveTab(tabFromPath(window.location.pathname));
+      setPathKey(window.location.pathname);
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   const navigate = useCallback<Navigate>((tab, query) => {
     setActiveTab(tab);
-    const qs = query ? `?${new URLSearchParams(query)}` : '';
-    const target = (PATHS[tab] || '/') + qs;
+    const { slug, ...rest } = query || {};
+    const qs = Object.keys(rest).length ? `?${new URLSearchParams(rest)}` : '';
+    const path = tab === 'center' && slug ? `${PATHS.center}/${encodeURIComponent(slug)}` : PATHS[tab] || '/';
+    const target = path + qs;
+    setPathKey(path);
     if (window.location.protocol !== 'file:' && window.location.pathname + window.location.search !== target) {
       try {
         window.history.pushState(null, '', target);
@@ -114,6 +126,8 @@ function App() {
         return <OrgPortal />;
       case 'admin':
         return <Admin />;
+      case 'center':
+        return <CenterPage key={pathKey} navigate={navigate} />;
       default:
         return <Home navigate={navigate} />;
     }
@@ -162,7 +176,7 @@ function App() {
           <p style={{ fontSize: '0.75rem' }}>© {new Date().getFullYear()} Career Bridge. All rights reserved.</p>
           {visits !== null && <p style={{ fontSize: '0.75rem', marginTop: '6px', opacity: 0.8 }}>누적 방문자 수: {visits.toLocaleString()}명</p>}
           <div className="footer-links">
-            <button onClick={() => navigate('org')}>교육기관 등록·로그인</button>
+            <button onClick={() => navigate('org')}>교육기관·센터 등록·로그인</button>
             <button onClick={() => navigate('admin')}>센터 관리자</button>
           </div>
         </div>

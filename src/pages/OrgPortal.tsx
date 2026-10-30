@@ -3,6 +3,7 @@ import { LogOut, Plus, Pencil, Trash2, Clock, Ban, School, Eye, EyeOff } from 'l
 import { orgApi, ApiError, type Org, type Program } from '../api';
 import { ORG_TYPES, PROGRAM_REGIONS } from '../data/programs';
 import ProgramForm, { emptyDraft, type ProgramDraft } from '../components/ProgramForm';
+import CenterEditor from '../components/CenterEditor';
 import { formatRange, programStatus } from '../components/ProgramCard';
 
 type Mode = { type: 'list' } | { type: 'new' } | { type: 'edit'; program: Program };
@@ -150,6 +151,8 @@ const OrgPortal = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [mode, setMode] = useState<Mode>({ type: 'list' });
   const [message, setMessage] = useState<string>();
+  // 중장년내일센터 계정은 교육·행사 말고 센터 홈페이지도 관리합니다.
+  const [section, setSection] = useState<'programs' | 'center'>('programs');
 
   const refreshMe = useCallback(async () => {
     try {
@@ -199,7 +202,9 @@ const OrgPortal = () => {
       <div className="page-header">
         <div className="container">
           <h1 className="page-title">교육기관 등록·관리</h1>
-          <p className="page-subtitle">기관 계정을 신청하시면 센터 승인 후 교육과정과 채용행사를 직접 등록하고 수정할 수 있습니다.</p>
+          <p className="page-subtitle">
+            기관 계정을 신청하시면 센터 승인 후 교육과정과 채용행사를 직접 등록하고 수정할 수 있습니다. 기관 유형을 「중장년내일센터」로 신청하면 센터 홈페이지도 만들 수 있어요.
+          </p>
         </div>
       </div>
 
@@ -269,7 +274,20 @@ const OrgPortal = () => {
               </div>
             )}
 
-            {org.status === 'approved' && (
+            {org.status === 'approved' && org.org_type === '중장년내일센터' && (
+              <div className="tabs">
+                <button className={`tab ${section === 'programs' ? 'active' : ''}`} onClick={() => setSection('programs')}>
+                  교육·행사
+                </button>
+                <button className={`tab ${section === 'center' ? 'active' : ''}`} onClick={() => setSection('center')}>
+                  센터 홈페이지
+                </button>
+              </div>
+            )}
+
+            {org.status === 'approved' && section === 'center' && org.org_type === '중장년내일센터' && <CenterEditor />}
+
+            {org.status === 'approved' && (section === 'programs' || org.org_type !== '중장년내일센터') && (
               <>
                 {message && <div className="notice notice-success" style={{ marginBottom: '16px' }}>{message}</div>}
                 {mode.type === 'list' ? (
