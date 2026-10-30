@@ -106,32 +106,34 @@ const Jobs = (_: { navigate: Navigate }) => {
           <p className="page-subtitle">
             고용24와 실시간으로 연결된 전국 시·군·구별 채용정보입니다. 회원가입 없이 핵심 조건을 바로 비교하고 직종별로 찾아보세요.
           </p>
+          {/* 지역은 가장 먼저 고르는 것이라 제목 바로 아래에 크게 둡니다 */}
+          <div className="region-bar">
+            <span className="region-bar-label">
+              <MapPin size={20} /> 어느 지역 일자리를 볼까요?
+            </span>
+            <div className="region-bar-selects">
+              <select value={sidoName} onChange={(e) => setRegion(`${e.target.value} ${SIDO.find((s) => s.name === e.target.value)!.areas[0][1]}`)} aria-label="시·도">
+                {SIDO.map((s) => (
+                  <option key={s.name} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <select value={areaName} onChange={(e) => setRegion(`${sidoName} ${e.target.value}`)} aria-label="시·군·구">
+                {areas.map(([code, name]) => (
+                  <option key={code} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="container" style={{ paddingBottom: '80px' }}>
         {/* 검색 · 필터 */}
         <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '28px' }}>
-          <div className="filter-row">
-            <span className="filter-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <MapPin size={16} /> 지역
-            </span>
-            <select value={sidoName} onChange={(e) => setRegion(`${e.target.value} ${SIDO.find((s) => s.name === e.target.value)!.areas[0][1]}`)} aria-label="시·도" style={{ padding: '8px 12px' }}>
-              {SIDO.map((s) => (
-                <option key={s.name} value={s.name}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <select value={areaName} onChange={(e) => setRegion(`${sidoName} ${e.target.value}`)} aria-label="시·군·구" style={{ padding: '8px 12px' }}>
-              {areas.map(([code, name]) => (
-                <option key={code} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div style={{ position: 'relative' }}>
             <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
             <input
