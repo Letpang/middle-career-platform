@@ -4,18 +4,21 @@ import type { Navigate } from '../App';
 import { fetchJobs, fetchPrograms, type Job, type Program } from '../api';
 import { classifyJob, countBy, groupByCategory, jobArea, JOB_FILTERS, matchesQuery, parseFilters, type JobFilterKey } from '../data/jobs';
 import { EVENT_SITES, JOB_SITES } from '../data/links';
+import { DEFAULT_REGION, findRegion, SIDO } from '../data/regions';
 import { loadProfile } from '../lib/profile';
 import JobCard from '../components/JobCard';
 import EventCalendar from '../components/EventCalendar';
 import { LinkCard, LinkGroups } from '../components/LinkCards';
 
-const REGIONS = ['고양', '파주', '김포'];
+const EVENT_REGIONS = ['고양', '파주', '김포'];
 const PAGE = 20;
 
 const Jobs = (_: { navigate: Navigate }) => {
   const initial = useMemo(() => new URLSearchParams(window.location.search), []);
-  // 주소에 지역이 있으면 그 지역, 없으면 프로필의 희망 지역, 그것도 없으면 고양
-  const [region, setRegion] = useState<string>(() => [initial.get('region'), loadProfile()?.region].find((r): r is string => !!r && REGIONS.includes(r)) || REGIONS[0]);
+  // 주소에 지역이 있으면 그 지역, 없으면 프로필의 희망 지역, 그것도 없으면 고양 ('경기 고양시'처럼 시·도와 시·군·구)
+  const [region, setRegion] = useState<string>(() => (findRegion(initial.get('region')) || findRegion(loadProfile()?.region))?.key || DEFAULT_REGION);
+  const [sidoName, areaName] = region.split(' ');
+  const areas = SIDO.find((s) => s.name === sidoName)?.areas || [];
   const [query, setQuery] = useState<string>(initial.get('keyword') || '');
   const [category, setCategory] = useState<string>(initial.get('category') || '전체');
   const [workType, setWorkType] = useState('전체');
@@ -101,7 +104,7 @@ const Jobs = (_: { navigate: Navigate }) => {
         <div className="container">
           <h1 className="page-title">중장년 맞춤 일자리</h1>
           <p className="page-subtitle">
-            고용24와 실시간으로 연결된 고양·파주·김포 채용정보입니다. 회원가입 없이 핵심 조건을 바로 비교하고 직종별로 찾아보세요.
+            고용24와 실시간으로 연결된 전국 시·군·구별 채용정보입니다. 회원가입 없이 핵심 조건을 바로 비교하고 직종별로 찾아보세요.
           </p>
         </div>
       </div>
@@ -113,18 +116,27 @@ const Jobs = (_: { navigate: Navigate }) => {
             <span className="filter-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <MapPin size={16} /> 지역
             </span>
-            {REGIONS.map((r) => (
-              <button key={r} className={`filter-btn ${region === r ? 'active' : ''}`} onClick={() => setRegion(r)}>
-                {r}
-              </button>
-            ))}
+            <select value={sidoName} onChange={(e) => setRegion(`${e.target.value} ${SIDO.find((s) => s.name === e.target.value)!.areas[0][1]}`)} aria-label="시·도" style={{ padding: '8px 12px' }}>
+              {SIDO.map((s) => (
+                <option key={s.name} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <select value={areaName} onChange={(e) => setRegion(`${sidoName} ${e.target.value}`)} aria-label="시·군·구" style={{ padding: '8px 12px' }}>
+              {areas.map(([code, name]) => (
+                <option key={code} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div style={{ position: 'relative' }}>
             <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
             <input
               type="text"
-              placeholder={`${region} 공고 안에서 직무명, 회사명, 동네 이름으로 찾기 (예: 사무직, 금촌동)`}
+              placeholder={`${areaName} 공고 안에서 직무명, 회사명, 동네 이름으로 찾기 (예: 사무직, 경비)`}
               style={{ width: '100%', paddingLeft: '40px', paddingRight: query ? '40px' : undefined }}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -252,7 +264,7 @@ const Jobs = (_: { navigate: Navigate }) => {
             센터와 기관이 직접 등록한 채용박람회, 구인구직 만남의 날, 동행면접 일정입니다. 날짜를 누르면 그날 행사를 볼 수 있어요.
           </p>
           <div className="filter-row" style={{ marginBottom: '16px' }}>
-            {REGIONS.map((r) => (
+            {EVENT_REGIONS.map((r) => (
               <button key={r} className={`filter-btn ${eventRegion === r ? 'active' : ''}`} onClick={() => setEventRegion(r)}>
                 {r}
               </button>

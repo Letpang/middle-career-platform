@@ -2,18 +2,11 @@
 // 목록: callOpenApiSvcInfo210L01 / 상세: callOpenApiSvcInfo210D01 (XML 응답)
 
 import type { Env } from './index';
+import { findRegion, inRegion } from '../src/data/regions';
 
 const LIST_URL = 'https://www.work24.go.kr/cm/openApi/call/wk/callOpenApiSvcInfo210L01.do';
 const DETAIL_URL = 'https://www.work24.go.kr/cm/openApi/call/wk/callOpenApiSvcInfo210D01.do';
 const CACHE_SECONDS = 20 * 60;
-
-// 지역 버튼 → 고용24 지역코드. 코드가 맞지 않을 경우를 대비해 주소 문자열로 한 번 더 거릅니다.
-// 고용24는 쉼표로 여러 코드를 묶어 조회하지 못합니다. 고양시 통합 코드(41280)가 3개 구 공고를 모두 포함합니다.
-const REGION_CODES: Record<string, string[][]> = {
-  고양: [['41280']],
-  파주: [['41480']],
-  김포: [['41570']],
-};
 
 // 고용24 고용형태 코드
 const EMP_TYPES: Record<string, string> = {
@@ -176,28 +169,24 @@ export async function listJobs(
   return cached(`list:${keyword}:${startPage}:${display}`, ctx, () => fetchListPage(key, params));
 }
 
-// 지역 전체 목록 (고양·파주·김포). 한 번에 모두 받아 두고 화면에서 키워드·직종으로 거릅니다.
-export async function listRegionJobs(env: Env, ctx: ExecutionContext, region: string) {
+// 지역 전체 목록 (전국 시·군·구 하나). 한 번에 모두 받아 두고 화면에서 키워드·직종으로 거릅니다.
+// 코드가 맞지 않을 경우를 대비해 주소 문자열로 한 번 더 거릅니다.
+export async function listRegionJobs(env: Env, ctx: ExecutionContext, value: string) {
   const key = getApiKey(env);
-  const codeSets = REGION_CODES[region];
-  if (!codeSets) throw new Work24Error('지원하지 않는 지역입니다.', 400);
+  const region = findRegion(value);
+  if (!region) throw new Work24Error('지원하지 않는 지역입니다.', 400);
 
-  return cached(`region:${region}`, ctx, async () => {
-    for (const codes of codeSets) {
-      const first = await fetchListPage(key, { region: codes.join(','), startPage: '1', display: '100' });
-      const pages = Math.min(Math.ceil(first.total / 100), 12);
-      const rest = await Promise.all(
-        Array.from({ length: Math.max(pages - 1, 0) }, (_, i) =>
-          fetchListPage(key, { region: codes.join(','), startPage: String(i + 2), display: '100' }).catch(() => ({ total: 0, items: [] as JobItem[] })),
-        ),
-      );
-      const all = [first, ...rest].flatMap((p) => p.items).filter((j) => j.location.includes(region) || j.address.includes(region));
-      if (all.length > 0) {
-        const unique = Array.from(new Map(all.map((j) => [j.id, j])).values());
-        return { total: unique.length, items: unique };
-      }
-    }
-    return { total: 0, items: [] as JobItem[] };
+  return cached(`region:${region.code}`, ctx, async () => {
+    const first = await fetchListPage(key, { region: region.code, startPage: '1', display: '100' });
+    const pages = Math.min(Math.ceil(first.total / 100), 12);
+    const rest = await Promise.all(
+      Array.from({ length: Math.max(pages - 1, 0) }, (_, i) =>
+        fetchListPage(key, { region: region.code, startPage: String(i + 2), display: '100' }).catch(() => ({ total: 0, items: [] as JobItem[] })),
+      ),
+    );
+    const all = [first, ...rest].flatMap((p) => p.items).filter((j) => inRegion(region, `${j.location} ${j.address}`));
+    const unique = Array.from(new Map(all.map((j) => [j.id, j])).values());
+    return { total: unique.length, items: unique };
   });
 }
 
