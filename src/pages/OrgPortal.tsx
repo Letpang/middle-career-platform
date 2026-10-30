@@ -53,6 +53,7 @@ const RegisterForm = ({ onDone }: { onDone: () => void }) => {
   const [busy, setBusy] = useState(false);
 
   const set = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((p) => ({ ...p, [e.target.name]: e.target.value }));
+  const isCenter = f.org_type === '중장년내일센터';
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -108,8 +109,9 @@ const RegisterForm = ({ onDone }: { onDone: () => void }) => {
           <input id="r-phone" name="phone" value={f.phone} onChange={set} required maxLength={40} placeholder="031-000-0000" />
         </div>
         <div className="field">
-          <label htmlFor="r-email">이메일</label>
-          <input id="r-email" type="email" name="email" value={f.email} onChange={set} maxLength={100} />
+          <label htmlFor="r-email">이메일{isCenter && ' *'}</label>
+          <input id="r-email" type="email" name="email" value={f.email} onChange={set} maxLength={100} required={isCenter} />
+          {isCenter && <span className="field-hint">이 지역 상담 신청이 들어오면 이 주소로 알려 드려요</span>}
         </div>
         <div className="field">
           <label htmlFor="r-home">기관 홈페이지</label>

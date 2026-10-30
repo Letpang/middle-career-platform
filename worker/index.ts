@@ -12,6 +12,9 @@ export interface Env {
   WORK24_API_KEY?: string;
   ADMIN_PASSWORD?: string;
   GOOGLE_API_KEY?: string;
+  // 상담 신청 알림 메일. Cloudflare Email Sending 에 등록한 도메인의 주소(MAIL_FROM)가 있어야 보냅니다.
+  EMAIL?: SendEmail;
+  MAIL_FROM?: string;
 }
 
 class HttpError extends Error {
@@ -156,6 +159,9 @@ async function orgRoutes(env: Env, req: Request, path: string): Promise<Response
       email: str(b, 'email', 100),
       homepage: urlStr(b, 'homepage', '홈페이지'),
     };
+    // 중장년내일센터는 상담 신청 알림을 이 이메일로 받습니다.
+    if (org.org_type === CENTER_TYPE && !org.email) throw new HttpError(400, '중장년내일센터는 상담 신청을 받을 이메일을 입력해 주세요.');
+    if (org.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(org.email)) throw new HttpError(400, '이메일 주소를 정확히 입력해 주세요.');
     const exists = await env.DB.prepare('SELECT 1 FROM orgs WHERE login_id = ?').bind(loginId).first();
     if (exists) throw new HttpError(409, '이미 사용 중인 아이디입니다.');
     const { hash, salt } = await hashPassword(password);
@@ -502,7 +508,44 @@ async function adminRoutes(env: Env, req: Request, path: string): Promise<Respon
 const COUNSEL_METHODS = ['전화상담', '방문상담'] as const;
 const CENTERS = ['고양', '파주'] as const;
 
-async function createCounseling(env: Env, req: Request) {
+// 상담 신청이 들어오면 그 지역 중장년내일센터 계정의 이메일로 알립니다. 실패해도 신청은 저장됩니다.
+async function notifyCenter(env: Env, r: Record<string, string>) {
+  if (!env.EMAIL || !env.MAIL_FROM) return;
+  const { results } = await env.DB.prepare(
+    `SELECT name, email FROM orgs WHERE org_type = ? AND status = 'approved' AND region = ? AND email <> ''`,
+  )
+    .bind(CENTER_TYPE, r.center)
+    .all<{ name: string; email: string }>();
+  const text = [
+    `${r.center} 센터로 새 상담 신청이 들어왔습니다.`,
+    '',
+    `이름: ${r.name}`,
+    `연락처: ${r.phone}`,
+    `상담 방법: ${r.method}`,
+    r.topic && `상담 주제: ${r.topic}`,
+    r.preferred_time && `연락 희망 시간: ${r.preferred_time}`,
+    r.message && `\n남긴 말:\n${r.message}`,
+    r.profile_summary && `\n프로필 요약:\n${r.profile_summary}`,
+    '',
+    '전체 신청 목록은 커리어 브릿지 「센터 관리자」 화면의 「상담 신청」에서 볼 수 있습니다.',
+  ]
+    .filter((l) => l !== '')
+    .join('\n');
+  for (const org of results) {
+    try {
+      await env.EMAIL.send({
+        to: org.email,
+        from: { email: env.MAIL_FROM, name: '커리어 브릿지' },
+        subject: `[커리어 브릿지] 새 상담 신청 - ${r.name}님 (${r.method})`,
+        text,
+      });
+    } catch (e) {
+      console.error('상담 신청 알림 메일 실패', org.email, e);
+    }
+  }
+}
+
+async function createCounseling(env: Env, req: Request, ctx: ExecutionContext) {
   const b = await readBody(req);
   if (b.consent !== true) throw new HttpError(400, '개인정보 수집·이용에 동의해 주세요.');
   const method = oneOf(str(b, 'method', 10), COUNSEL_METHODS, '전화상담');
@@ -512,21 +555,23 @@ async function createCounseling(env: Env, req: Request) {
   }
   const phone = str(b, 'phone', 30, true, '연락처');
   if (!/^[0-9-+() ]{8,20}$/.test(phone)) throw new HttpError(400, '연락처를 숫자로 정확히 입력해 주세요.');
+  const r = {
+    center: oneOf(str(b, 'center', 10), CENTERS, '파주'),
+    name: str(b, 'name', 40, true, '이름'),
+    phone,
+    topic: str(b, 'topic', 60),
+    method,
+    preferred_time: str(b, 'preferred_time', 100),
+    message: str(b, 'message', 2000),
+    profile_summary: profileSummary,
+  };
   await env.DB.prepare(
     `INSERT INTO counseling_requests (center, name, phone, topic, method, preferred_time, message, profile_summary)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(
-      oneOf(str(b, 'center', 10), CENTERS, '파주'),
-      str(b, 'name', 40, true, '이름'),
-      phone,
-      str(b, 'topic', 60),
-      method,
-      str(b, 'preferred_time', 100),
-      str(b, 'message', 2000),
-      profileSummary,
-    )
+    .bind(r.center, r.name, r.phone, r.topic, r.method, r.preferred_time, r.message, r.profile_summary)
     .run();
+  ctx.waitUntil(notifyCenter(env, r));
   return json({ ok: true });
 }
 
@@ -637,7 +682,7 @@ async function handleApi(req: Request, env: Env, ctx: ExecutionContext): Promise
     }
     return publicCenter(env, slug);
   }
-  if (path === '/api/counseling' && req.method === 'POST') return createCounseling(env, req);
+  if (path === '/api/counseling' && req.method === 'POST') return createCounseling(env, req, ctx);
   if (path === '/api/chat' && req.method === 'POST') return chat(env, req);
 
   const orgRes = path.startsWith('/api/org/') ? await orgRoutes(env, req, path) : null;
