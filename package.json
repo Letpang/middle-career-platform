@@ -15,7 +15,8 @@
   "dependencies": {
     "lucide-react": "^1.21.0",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "worker-mailer": "1.2.1"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.42.3",
