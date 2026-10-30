@@ -235,6 +235,18 @@ async function orgRoutes(env: Env, req: Request, path: string): Promise<Response
   return null;
 }
 
+// ─── 사이트 이름 (센터 관리자가 바꿀 수 있음) ─────────────
+
+const DEFAULT_SITE_NAME = '커리어 브릿지';
+
+// settings 표가 아직 없으면(마이그레이션 전) 기본 이름을 씁니다.
+async function getSiteName(env: Env): Promise<string> {
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE name = 'site_name'`)
+    .first<{ value: string }>()
+    .catch(() => null);
+  return row?.value || DEFAULT_SITE_NAME;
+}
+
 // ─── 센터 관리자 ─────────────────────────────────────────
 
 async function requireAdmin(env: Env, req: Request) {
@@ -263,6 +275,15 @@ async function adminRoutes(env: Env, req: Request, path: string): Promise<Respon
   await requireAdmin(env, req);
 
   if (path === '/api/admin/me' && method === 'GET') return json({ ok: true });
+
+  if (path === '/api/admin/settings' && method === 'POST') {
+    const b = await readBody(req);
+    const siteName = str(b, 'siteName', 30, true, '사이트 이름');
+    await env.DB.prepare(`INSERT INTO settings (name, value) VALUES ('site_name', ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value`)
+      .bind(siteName)
+      .run();
+    return json({ siteName });
+  }
 
   if (path === '/api/admin/orgs' && method === 'GET') {
     const { results } = await env.DB.prepare(
@@ -352,7 +373,7 @@ async function createCounseling(env: Env, req: Request) {
 
 // ─── AI 질문창 ───────────────────────────────────────────
 
-const CHAT_SYSTEM = `당신은 중장년(4060세대) 재취업 지원 사이트 "커리어 브릿지"의 안내 도우미입니다.
+const chatSystem = (siteName: string) => `당신은 중장년(4060세대) 재취업 지원 사이트 "${siteName}"의 안내 도우미입니다.
 - 항상 한국어로, 쉽고 공손하게, 5문장 이내로 답합니다.
 - 사이트 메뉴: 일자리(고용24 실시간 채용정보, 전국 시·군·구별·직종별 보기, 채용행사 달력), 교육(기관이 직접 등록한 교육과정과 지역 평생교육 기관 안내), 상담지원(전화·방문 상담 신청), 프로필(이력 정리와 맞춤 추천).
 - 상담 문의: 고양상공회의소 중장년내일센터 031-901-9197, 파주상공회의소 중장년내일센터 031-8071-4245.
@@ -389,7 +410,7 @@ async function chat(env: Env, req: Request) {
   const b = await readBody(req);
   const message = str(b, 'message', 500, true, '질문');
   const history = Array.isArray(b.history) ? b.history.slice(-6) : [];
-  const messages: ChatMessage[] = [{ role: 'system', content: CHAT_SYSTEM }];
+  const messages: ChatMessage[] = [{ role: 'system', content: chatSystem(await getSiteName(env)) }];
   for (const h of history) {
     if (h && typeof h === 'object') {
       const role = (h as { role?: unknown }).role;
@@ -439,6 +460,8 @@ async function handleApi(req: Request, env: Env, ctx: ExecutionContext): Promise
 
   const jobMatch = /^\/api\/jobs\/([A-Za-z0-9]+)$/.exec(path);
   if (jobMatch && req.method === 'GET') return json(await getJobDetail(env, ctx, jobMatch[1]));
+
+  if (path === '/api/settings' && req.method === 'GET') return json({ siteName: await getSiteName(env) });
 
   if (path === '/api/visit' && req.method === 'GET') {
     const row = await env.DB.prepare(`UPDATE counters SET value = value + 1 WHERE name = 'visits' RETURNING value`).first<{ value: number }>();

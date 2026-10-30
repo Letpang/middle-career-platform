@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Briefcase, GraduationCap, ArrowRight, Award, Compass, Heart, MessageCircle, UserCheck, MapPin, Phone, Clock, Building2, School } from 'lucide-react';
 import type { Navigate } from '../App';
-import { fetchJobs, fetchPrograms, type Job } from '../api';
+import { DEFAULT_SITE_NAME, fetchJobs, fetchPrograms, type Job } from '../api';
 import JobTrends, { TREND_REGIONS } from '../components/JobTrends';
 import { loadProfile } from '../lib/profile';
 import { CENTERS } from '../data/links';
 
-const Home = ({ navigate }: { navigate: Navigate }) => {
+// 받침이 있으면 '은', 없으면 '는' (예: 커리어 브릿지는, 중장년내일센터는)
+function topicParticle(word: string) {
+  const c = word.charCodeAt(word.length - 1);
+  return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 ? '은' : '는';
+}
+
+const Home = ({ navigate, siteName }: { navigate: Navigate; siteName: string }) => {
   // 고양·파주·김포 공고 전체 (서버가 20분간 저장해 두어 두 번째부터는 빠릅니다)
   const [regionJobs, setRegionJobs] = useState<Record<string, Job[]> | null>(null);
   const [jobsError, setJobsError] = useState(false);
@@ -46,7 +52,7 @@ const Home = ({ navigate }: { navigate: Navigate }) => {
           <h1>
             인생 2막의 든든한 디딤돌
             <br />
-            <span>중장년 커리어 브릿지</span>
+            <span>{siteName === DEFAULT_SITE_NAME ? `중장년 ${siteName}` : siteName}</span>
           </h1>
           <p className="hero-subtitle">오랜 시간 쌓아오신 소중한 경험과 지혜가 새로운 기회로 이어지도록, 실시간 채용정보부터 맞춤 교육, 1:1 상담까지 한 곳에서 도와드립니다.</p>
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -134,7 +140,8 @@ const Home = ({ navigate }: { navigate: Navigate }) => {
                 사회의 가장 밝은 빛입니다.
               </h2>
               <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                중장년 세대의 지혜는 새로운 세대와 사회에 귀중한 나침반이 됩니다. 커리어 브릿지는 이 연결고리가 끊어지지 않도록 단단한 다리가 되어 드리겠습니다.
+                중장년 세대의 지혜는 새로운 세대와 사회에 귀중한 나침반이 됩니다. {siteName}
+                {topicParticle(siteName)} 이 연결고리가 끊어지지 않도록 단단한 다리가 되어 드리겠습니다.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {[

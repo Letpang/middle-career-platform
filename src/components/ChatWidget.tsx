@@ -7,19 +7,22 @@ interface Msg {
   text: string;
 }
 
-const GREETING: Msg = {
+const greeting = (siteName: string): Msg => ({
   role: 'assistant',
-  text: '안녕하세요! 커리어 브릿지 AI 도우미입니다. 일자리, 교육, 상담 신청 등 사이트 이용이 궁금하시거나 이력서·면접 관련 고민이 있으시면 편하게 물어보세요.',
-};
+  text: `안녕하세요! ${siteName} AI 도우미입니다. 일자리, 교육, 상담 신청 등 사이트 이용이 궁금하시거나 이력서·면접 관련 고민이 있으시면 편하게 물어보세요.`,
+});
 const HISTORY = 6;
 
-const ChatWidget = () => {
+const ChatWidget = ({ siteName }: { siteName: string }) => {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Msg[]>([GREETING]);
+  const [messages, setMessages] = useState<Msg[]>(() => [greeting(siteName)]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const listRef = useRef<HTMLDivElement>(null);
+
+  // 사이트 이름은 화면이 뜬 뒤에 받아 오므로 첫 인사를 다시 씁니다.
+  useEffect(() => setMessages((m) => [greeting(siteName), ...m.slice(1)]), [siteName]);
 
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
