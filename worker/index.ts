@@ -3,6 +3,7 @@
 
 import { listJobs, listRegionJobs, getJobDetail, Work24Error } from './work24';
 import { hashPassword, verifyPassword, verifyAdminPassword, createSession, getSession, destroySession } from './auth';
+import { findRegion } from '../src/data/regions';
 
 export interface Env {
   DB: D1Database;
@@ -232,19 +233,186 @@ async function orgRoutes(env: Env, req: Request, path: string): Promise<Response
     return json({ ok: true });
   }
 
+  return centerOrgRoutes(env, req, path);
+}
+
+// ─── 중장년내일센터 홈페이지 ─────────────────────────────
+// 기관 유형이 '중장년내일센터'인 승인된 계정이 /center/<slug> 홈페이지를 직접 채웁니다.
+
+const CENTER_TYPE = '중장년내일센터';
+
+// 처음 만들 때 채워 두는 서비스 안내 (전국 중장년내일센터 공통 서비스, 고용24 안내 기준)
+const DEFAULT_SERVICES = [
+  { title: '생애경력설계', target: '재직 중인 40세 이상', desc: '자가진단으로 그동안 쌓은 경력자산을 확인하고 앞으로의 진로를 함께 설계합니다.' },
+  { title: '전직스쿨', target: '퇴직 예정자', desc: '퇴직을 앞두고 변화에 대비하는 마음가짐과 전직에 필요한 기술을 익힙니다.' },
+  { title: '재도약 프로그램', target: '퇴직 후 구직 중인 40세 이상', desc: '이력서·자기소개서 작성, 면접 실습으로 구직 역량을 높이고 동아리 활동으로 함께 준비합니다.' },
+  { title: '1:1 전직지원 상담', target: '40세 이상 구직자', desc: '전담 컨설턴트가 6개월 동안 상담과 취업 알선을 도와드립니다. 모든 서비스는 무료입니다.' },
+  { title: '기업 인재 추천', target: '중장년을 채용하려는 기업', desc: '구인 신청을 받아 경력과 조건에 맞는 중장년 인재를 추천해 드립니다.' },
+];
+
+const CENTER_COLS = ['slug', 'operator', 'intro', 'address', 'phone', 'hours', 'map_url', 'job_region', 'services', 'published'] as const;
+const POST_KINDS = ['notice', 'job'] as const;
+const POST_COLS = ['kind', 'title', 'body', 'company', 'deadline', 'link'] as const;
+const SLUG_RE = /^[a-z0-9가-힣-]{2,20}$/;
+
+function readCenterPage(b: Record<string, unknown>) {
+  const slug = str(b, 'slug', 20, true, '홈페이지 주소').toLowerCase();
+  if (!SLUG_RE.test(slug)) throw new HttpError(400, '홈페이지 주소는 한글·영문 소문자·숫자 2~20자로 입력해 주세요.');
+  const services = (Array.isArray(b.services) ? b.services.slice(0, 12) : []).map((v, i) => {
+    const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+    return { title: str(o, 'title', 40, true, `${i + 1}번째 서비스 이름`), target: str(o, 'target', 60), desc: str(o, 'desc', 300) };
+  });
+  const jobRegion = str(b, 'job_region', 40);
+  const region = jobRegion ? findRegion(jobRegion) : null;
+  if (jobRegion && !region) throw new HttpError(400, '채용정보 지역을 다시 골라 주세요.');
+  return {
+    slug,
+    operator: str(b, 'operator', 60),
+    intro: str(b, 'intro', 1000),
+    address: str(b, 'address', 200),
+    phone: str(b, 'phone', 40),
+    hours: str(b, 'hours', 100),
+    map_url: urlStr(b, 'map_url', '지도 주소'),
+    job_region: region?.key || '',
+    services: JSON.stringify(services),
+    published: b.published === false ? 0 : 1,
+  };
+}
+
+function readPost(b: Record<string, unknown>) {
+  return {
+    kind: oneOf(str(b, 'kind', 10), POST_KINDS, 'notice'),
+    title: str(b, 'title', 120, true, '제목'),
+    body: str(b, 'body', 3000),
+    company: str(b, 'company', 80),
+    deadline: dateStr(b, 'deadline'),
+    link: urlStr(b, 'link', '링크'),
+  };
+}
+
+async function requireCenter(env: Env, req: Request) {
+  const org = await requireOrg(env, req);
+  if (org.org_type !== CENTER_TYPE) throw new HttpError(403, '기관 유형이 중장년내일센터인 계정만 센터 홈페이지를 만들 수 있습니다.');
+  if (org.status !== 'approved') throw new HttpError(403, '관리자 승인 후에 센터 홈페이지를 만들 수 있습니다.');
+  return org;
+}
+
+async function centerOrgRoutes(env: Env, req: Request, path: string): Promise<Response | null> {
+  const method = req.method;
+
+  if (path === '/api/org/center' && method === 'GET') {
+    const org = await requireCenter(env, req);
+    const page = await env.DB.prepare('SELECT * FROM center_pages WHERE org_id = ?').bind(org.id).first<Record<string, unknown> & { services: string }>();
+    if (page) return json({ page: { ...page, services: JSON.parse(page.services) }, exists: true });
+    const region = String(org.region || '');
+    return json({
+      exists: false,
+      page: {
+        slug: SLUG_RE.test(region) ? region : '',
+        operator: '',
+        intro: '',
+        address: '',
+        phone: org.phone,
+        hours: '평일 09:00 ~ 18:00',
+        map_url: '',
+        job_region: findRegion(region)?.key || '',
+        services: DEFAULT_SERVICES,
+        published: 1,
+      },
+    });
+  }
+
+  if (path === '/api/org/center' && method === 'PUT') {
+    const org = await requireCenter(env, req);
+    const c = readCenterPage(await readBody(req));
+    const taken = await env.DB.prepare('SELECT 1 FROM center_pages WHERE slug = ? AND org_id <> ?').bind(c.slug, org.id).first();
+    if (taken) throw new HttpError(409, '이미 다른 센터가 쓰는 홈페이지 주소입니다. 다른 주소를 입력해 주세요.');
+    await env.DB.prepare(
+      `INSERT INTO center_pages (org_id, ${CENTER_COLS.join(', ')}) VALUES (?, ${CENTER_COLS.map(() => '?').join(', ')})
+       ON CONFLICT(org_id) DO UPDATE SET ${CENTER_COLS.map((k) => `${k} = excluded.${k}`).join(', ')}, updated_at = datetime('now')`,
+    )
+      .bind(org.id, ...CENTER_COLS.map((k) => c[k]))
+      .run();
+    return json({ ok: true, slug: c.slug });
+  }
+
+  if (path === '/api/org/posts' && method === 'GET') {
+    const org = await requireCenter(env, req);
+    const { results } = await env.DB.prepare('SELECT * FROM center_posts WHERE org_id = ? ORDER BY created_at DESC, id DESC').bind(org.id).all();
+    return json({ items: results });
+  }
+
+  if (path === '/api/org/posts' && method === 'POST') {
+    const org = await requireCenter(env, req);
+    const p = readPost(await readBody(req));
+    const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM center_posts WHERE org_id = ?').bind(org.id).first<{ n: number }>();
+    if ((count?.n || 0) >= 500) throw new HttpError(400, '등록 가능한 개수를 넘었습니다. 지난 글을 정리해 주세요.');
+    await env.DB.prepare(`INSERT INTO center_posts (org_id, ${POST_COLS.join(', ')}) VALUES (?, ${POST_COLS.map(() => '?').join(', ')})`)
+      .bind(org.id, ...POST_COLS.map((k) => p[k]))
+      .run();
+    return json({ ok: true });
+  }
+
+  const m = /^\/api\/org\/posts\/(\d+)$/.exec(path);
+  if (m && (method === 'PUT' || method === 'DELETE')) {
+    const org = await requireCenter(env, req);
+    const id = Number(m[1]);
+    if (method === 'DELETE') {
+      await env.DB.prepare('DELETE FROM center_posts WHERE id = ? AND org_id = ?').bind(id, org.id).run();
+      return json({ ok: true });
+    }
+    const p = readPost(await readBody(req));
+    const res = await env.DB.prepare(
+      `UPDATE center_posts SET ${POST_COLS.map((k) => `${k} = ?`).join(', ')}, updated_at = datetime('now') WHERE id = ? AND org_id = ?`,
+    )
+      .bind(...POST_COLS.map((k) => p[k]), id, org.id)
+      .run();
+    if (!res.meta.changes) throw new HttpError(404, '글을 찾을 수 없습니다.');
+    return json({ ok: true });
+  }
+
   return null;
 }
 
-// ─── 사이트 이름 (센터 관리자가 바꿀 수 있음) ─────────────
+async function publicCenters(env: Env) {
+  const { results } = await env.DB.prepare(
+    `SELECT c.slug, c.operator, c.address, c.phone, c.hours, o.name, o.region
+       FROM center_pages c JOIN orgs o ON o.id = c.org_id
+      WHERE c.published = 1 AND o.status = 'approved' AND o.org_type = ?
+      ORDER BY o.name`,
+  )
+    .bind(CENTER_TYPE)
+    .all();
+  return json({ items: results });
+}
 
-const DEFAULT_SITE_NAME = '커리어 브릿지';
-
-// settings 표가 아직 없으면(마이그레이션 전) 기본 이름을 씁니다.
-async function getSiteName(env: Env): Promise<string> {
-  const row = await env.DB.prepare(`SELECT value FROM settings WHERE name = 'site_name'`)
-    .first<{ value: string }>()
-    .catch(() => null);
-  return row?.value || DEFAULT_SITE_NAME;
+async function publicCenter(env: Env, slug: string) {
+  const c = await env.DB.prepare(
+    `SELECT c.*, o.name, o.homepage
+       FROM center_pages c JOIN orgs o ON o.id = c.org_id
+      WHERE c.slug = ? AND c.published = 1 AND o.status = 'approved' AND o.org_type = ?`,
+  )
+    .bind(slug, CENTER_TYPE)
+    .first<Record<string, unknown> & { org_id: number; services: string }>();
+  if (!c) throw new HttpError(404, '센터 홈페이지를 찾을 수 없습니다.');
+  // 끝난 지 30일 넘은 교육·행사는 숨깁니다 (교육 탭과 같은 기준).
+  const cutoff = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+  const [programs, posts] = await Promise.all([
+    env.DB.prepare(
+      `SELECT p.*, o.name AS org_name, o.homepage AS org_homepage, o.phone AS org_phone
+         FROM programs p JOIN orgs o ON o.id = p.org_id
+        WHERE p.org_id = ? AND p.visible = 1 AND COALESCE(NULLIF(p.end_date, ''), p.start_date) >= ?
+        ORDER BY p.start_date ASC LIMIT 100`,
+    )
+      .bind(c.org_id, cutoff)
+      .all(),
+    env.DB.prepare('SELECT id, kind, title, body, company, deadline, link, created_at FROM center_posts WHERE org_id = ? ORDER BY created_at DESC, id DESC LIMIT 100')
+      .bind(c.org_id)
+      .all(),
+  ]);
+  const { org_id: _orgId, ...center } = c;
+  void _orgId;
+  return json({ center: { ...center, services: JSON.parse(c.services) }, programs: programs.results, posts: posts.results });
 }
 
 // ─── 센터 관리자 ─────────────────────────────────────────
@@ -275,15 +443,6 @@ async function adminRoutes(env: Env, req: Request, path: string): Promise<Respon
   await requireAdmin(env, req);
 
   if (path === '/api/admin/me' && method === 'GET') return json({ ok: true });
-
-  if (path === '/api/admin/settings' && method === 'POST') {
-    const b = await readBody(req);
-    const siteName = str(b, 'siteName', 30, true, '사이트 이름');
-    await env.DB.prepare(`INSERT INTO settings (name, value) VALUES ('site_name', ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value`)
-      .bind(siteName)
-      .run();
-    return json({ siteName });
-  }
 
   if (path === '/api/admin/orgs' && method === 'GET') {
     const { results } = await env.DB.prepare(
@@ -373,7 +532,7 @@ async function createCounseling(env: Env, req: Request) {
 
 // ─── AI 질문창 ───────────────────────────────────────────
 
-const chatSystem = (siteName: string) => `당신은 중장년(4060세대) 재취업 지원 사이트 "${siteName}"의 안내 도우미입니다.
+const CHAT_SYSTEM = `당신은 중장년(4060세대) 재취업 지원 사이트 "커리어 브릿지"의 안내 도우미입니다.
 - 항상 한국어로, 쉽고 공손하게, 5문장 이내로 답합니다.
 - 사이트 메뉴: 일자리(고용24 실시간 채용정보, 전국 시·군·구별·직종별 보기, 채용행사 달력), 교육(기관이 직접 등록한 교육과정과 지역 평생교육 기관 안내), 상담지원(전화·방문 상담 신청), 프로필(이력 정리와 맞춤 추천).
 - 상담 문의: 고양상공회의소 중장년내일센터 031-901-9197, 파주상공회의소 중장년내일센터 031-8071-4245.
@@ -410,7 +569,7 @@ async function chat(env: Env, req: Request) {
   const b = await readBody(req);
   const message = str(b, 'message', 500, true, '질문');
   const history = Array.isArray(b.history) ? b.history.slice(-6) : [];
-  const messages: ChatMessage[] = [{ role: 'system', content: chatSystem(await getSiteName(env)) }];
+  const messages: ChatMessage[] = [{ role: 'system', content: CHAT_SYSTEM }];
   for (const h of history) {
     if (h && typeof h === 'object') {
       const role = (h as { role?: unknown }).role;
@@ -461,14 +620,23 @@ async function handleApi(req: Request, env: Env, ctx: ExecutionContext): Promise
   const jobMatch = /^\/api\/jobs\/([A-Za-z0-9]+)$/.exec(path);
   if (jobMatch && req.method === 'GET') return json(await getJobDetail(env, ctx, jobMatch[1]));
 
-  if (path === '/api/settings' && req.method === 'GET') return json({ siteName: await getSiteName(env) });
-
   if (path === '/api/visit' && req.method === 'GET') {
     const row = await env.DB.prepare(`UPDATE counters SET value = value + 1 WHERE name = 'visits' RETURNING value`).first<{ value: number }>();
     return json({ count: row?.value ?? null });
   }
 
   if (path === '/api/programs' && req.method === 'GET') return publicPrograms(env, url);
+  if (path === '/api/centers' && req.method === 'GET') return publicCenters(env);
+  const centerMatch = /^\/api\/centers\/([^/]+)$/.exec(path);
+  if (centerMatch && req.method === 'GET') {
+    let slug = '';
+    try {
+      slug = decodeURIComponent(centerMatch[1]);
+    } catch {
+      // 잘못된 주소는 아래에서 404
+    }
+    return publicCenter(env, slug);
+  }
   if (path === '/api/counseling' && req.method === 'POST') return createCounseling(env, req);
   if (path === '/api/chat' && req.method === 'POST') return chat(env, req);
 

@@ -139,9 +139,46 @@ export const fetchPrograms = (kind: ProgramKind) => get<{ items: Program[] }>(`/
 // 상담 신청
 export const submitCounseling = (body: Record<string, unknown>) => post<{ ok: true }>('/api/counseling', body);
 
-// 사이트 이름 (센터 관리자가 바꿀 수 있음)
-export const DEFAULT_SITE_NAME = '커리어 브릿지';
-export const fetchSettings = () => get<{ siteName: string }>('/api/settings');
+// 중장년내일센터 홈페이지
+export interface CenterService {
+  title: string;
+  target: string;
+  desc: string;
+}
+export interface CenterPage {
+  slug: string;
+  operator: string;
+  intro: string;
+  address: string;
+  phone: string;
+  hours: string;
+  map_url: string;
+  job_region: string;
+  services: CenterService[];
+  published: number;
+}
+export interface CenterPost {
+  id: number;
+  kind: 'notice' | 'job';
+  title: string;
+  body: string;
+  company: string;
+  deadline: string;
+  link: string;
+  created_at: string;
+}
+export interface CenterSummary {
+  slug: string;
+  name: string;
+  region: string;
+  operator: string;
+  address: string;
+  phone: string;
+  hours: string;
+}
+export const fetchCenters = () => get<{ items: CenterSummary[] }>('/api/centers');
+export const fetchCenter = (slug: string) =>
+  get<{ center: CenterPage & { name: string; homepage: string; updated_at: string }; programs: Program[]; posts: CenterPost[] }>(`/api/centers/${encodeURIComponent(slug)}`);
 
 // 방문자 수 · AI
 export const fetchVisit = () => get<{ count: number | null }>('/api/visit');
@@ -158,6 +195,12 @@ export const orgApi = {
   create: (p: Partial<Program>) => post<{ ok: true }>('/api/org/programs', p),
   update: (id: number, p: Partial<Program>) => post<{ ok: true }>(`/api/org/programs/${id}`, p, 'PUT'),
   remove: (id: number) => request<{ ok: true }>(`/api/org/programs/${id}`, { method: 'DELETE' }),
+  center: () => get<{ page: CenterPage; exists: boolean }>('/api/org/center'),
+  saveCenter: (page: CenterPage) => post<{ ok: true; slug: string }>('/api/org/center', page, 'PUT'),
+  posts: () => get<{ items: CenterPost[] }>('/api/org/posts'),
+  createPost: (p: Partial<CenterPost>) => post<{ ok: true }>('/api/org/posts', p),
+  updatePost: (id: number, p: Partial<CenterPost>) => post<{ ok: true }>(`/api/org/posts/${id}`, p, 'PUT'),
+  removePost: (id: number) => request<{ ok: true }>(`/api/org/posts/${id}`, { method: 'DELETE' }),
 };
 
 // 센터 관리자
@@ -165,7 +208,6 @@ export const adminApi = {
   login: (password: string) => post<{ ok: true }>('/api/admin/login', { password }),
   logout: () => post<{ ok: true }>('/api/admin/logout', {}),
   me: () => get<{ ok: true }>('/api/admin/me'),
-  setSiteName: (siteName: string) => post<{ siteName: string }>('/api/admin/settings', { siteName }),
   orgs: () => get<{ items: Org[] }>('/api/admin/orgs'),
   setOrgStatus: (id: number, status: Org['status'], note = '') => post<{ ok: true }>(`/api/admin/orgs/${id}/status`, { status, note }),
   programs: () => get<{ items: (Pick<Program, 'id' | 'kind' | 'title' | 'start_date' | 'end_date' | 'visible' | 'updated_at'> & { org_name: string })[] }>('/api/admin/programs'),

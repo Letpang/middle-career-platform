@@ -29,8 +29,14 @@ const Counseling = ({ navigate }: { navigate: Navigate }) => {
     return TOPICS.includes(t) ? t : TOPICS[0];
   }, []);
 
+  // 센터 홈페이지에서 오면 ?center=고양 처럼 센터가 정해져 옵니다.
+  const initialCenter = useMemo(() => {
+    const c = new URLSearchParams(window.location.search).get('center') || '';
+    return CENTERS.some((x) => x.region === c) ? c : '파주';
+  }, []);
+
   const blank = () => ({
-    center: '파주',
+    center: initialCenter,
     name: profile?.name || '',
     phone: profile?.phone || '',
     topic: initialTopic,

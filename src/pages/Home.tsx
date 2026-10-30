@@ -1,24 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Briefcase, GraduationCap, ArrowRight, Award, Compass, Heart, MessageCircle, UserCheck, MapPin, Phone, Clock, Building2, School } from 'lucide-react';
 import type { Navigate } from '../App';
-import { DEFAULT_SITE_NAME, fetchJobs, fetchPrograms, type Job } from '../api';
+import { fetchCenters, fetchJobs, fetchPrograms, type CenterSummary, type Job } from '../api';
 import JobTrends, { TREND_REGIONS } from '../components/JobTrends';
 import { loadProfile } from '../lib/profile';
 import { CENTERS } from '../data/links';
 
-// 받침이 있으면 '은', 없으면 '는' (예: 커리어 브릿지는, 중장년내일센터는)
-function topicParticle(word: string) {
-  const c = word.charCodeAt(word.length - 1);
-  return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 ? '은' : '는';
-}
-
-const Home = ({ navigate, siteName }: { navigate: Navigate; siteName: string }) => {
+const Home = ({ navigate }: { navigate: Navigate }) => {
   // 고양·파주·김포 공고 전체 (서버가 20분간 저장해 두어 두 번째부터는 빠릅니다)
   const [regionJobs, setRegionJobs] = useState<Record<string, Job[]> | null>(null);
   const [jobsError, setJobsError] = useState(false);
   const [trendRegion] = useState(() => TREND_REGIONS.find((r) => r === loadProfile()?.region) || TREND_REGIONS[0]);
   const [courseCount, setCourseCount] = useState<number | null>(null);
   const [eventCount, setEventCount] = useState<number | null>(null);
+  const [centerPages, setCenterPages] = useState<CenterSummary[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -30,6 +25,9 @@ const Home = ({ navigate, siteName }: { navigate: Navigate; siteName: string }) 
       .catch(() => {});
     fetchPrograms('event')
       .then((d) => alive && setEventCount(d.items.length))
+      .catch(() => {});
+    fetchCenters()
+      .then((d) => alive && setCenterPages(d.items))
       .catch(() => {});
     return () => {
       alive = false;
@@ -52,7 +50,7 @@ const Home = ({ navigate, siteName }: { navigate: Navigate; siteName: string }) 
           <h1>
             인생 2막의 든든한 디딤돌
             <br />
-            <span>{siteName === DEFAULT_SITE_NAME ? `중장년 ${siteName}` : siteName}</span>
+            <span>중장년 커리어 브릿지</span>
           </h1>
           <p className="hero-subtitle">오랜 시간 쌓아오신 소중한 경험과 지혜가 새로운 기회로 이어지도록, 실시간 채용정보부터 맞춤 교육, 1:1 상담까지 한 곳에서 도와드립니다.</p>
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -102,13 +100,19 @@ const Home = ({ navigate, siteName }: { navigate: Navigate; siteName: string }) 
             <p className="section-desc">가까운 센터에 직접 방문하거나 전화로 상담받으실 수 있어요</p>
           </div>
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
-            {CENTERS.map((c) => (
-              <div key={c.region} className="card" style={{ flexDirection: 'row', gap: '16px', alignItems: 'flex-start' }}>
+            {[
+              // 고양·파주는 기본 안내를 보여 주고, 센터가 홈페이지를 만들었으면 그 링크를 붙입니다.
+              ...CENTERS.map((c) => ({ ...c, slug: centerPages.find((p) => p.name.includes(c.region))?.slug })),
+              ...centerPages
+                .filter((p) => !CENTERS.some((c) => p.name.includes(c.region)))
+                .map((p) => ({ region: p.region, centerName: p.name, address: p.address, phone: p.phone, hours: p.hours, slug: p.slug })),
+            ].map((c) => (
+              <div key={c.slug || c.region} className="card" style={{ flexDirection: 'row', gap: '16px', alignItems: 'flex-start' }}>
                 <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '48px', height: '48px', borderRadius: '12px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)' }}>
                   <Building2 size={22} />
                 </div>
                 <div style={{ flex: '1 1 auto' }}>
-                  <span className="badge badge-secondary">{c.region}</span>
+                  {c.region && <span className="badge badge-secondary">{c.region}</span>}
                   <h3 style={{ fontSize: '1.05rem', marginTop: '6px', marginBottom: '10px' }}>{c.centerName}</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -121,6 +125,11 @@ const Home = ({ navigate, siteName }: { navigate: Navigate; siteName: string }) 
                       <Clock size={14} /> {c.hours}
                     </div>
                   </div>
+                  {c.slug && (
+                    <button className="card-link" style={{ marginTop: '12px' }} onClick={() => navigate('center', { slug: c.slug! })}>
+                      센터 홈페이지 <ArrowRight size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -140,8 +149,7 @@ const Home = ({ navigate, siteName }: { navigate: Navigate; siteName: string }) 
                 사회의 가장 밝은 빛입니다.
               </h2>
               <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                중장년 세대의 지혜는 새로운 세대와 사회에 귀중한 나침반이 됩니다. {siteName}
-                {topicParticle(siteName)} 이 연결고리가 끊어지지 않도록 단단한 다리가 되어 드리겠습니다.
+                중장년 세대의 지혜는 새로운 세대와 사회에 귀중한 나침반이 됩니다. 커리어 브릿지는 이 연결고리가 끊어지지 않도록 단단한 다리가 되어 드리겠습니다.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {[
