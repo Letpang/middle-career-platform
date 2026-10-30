@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } fr
 import { LogOut, Plus, Pencil, Trash2, Clock, Ban, School, Eye, EyeOff } from 'lucide-react';
 import { orgApi, ApiError, type Org, type Program } from '../api';
 import { ORG_TYPES, PROGRAM_REGIONS } from '../data/programs';
+import { SIDO } from '../data/regions';
 import ProgramForm, { emptyDraft, type ProgramDraft } from '../components/ProgramForm';
 import CenterEditor from '../components/CenterEditor';
 import { formatRange, programStatus } from '../components/ProgramCard';
@@ -54,6 +55,9 @@ const RegisterForm = ({ onDone }: { onDone: () => void }) => {
 
   const set = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((p) => ({ ...p, [e.target.name]: e.target.value }));
   const isCenter = f.org_type === '중장년내일센터';
+  // 중장년내일센터는 전국에서 신청하므로 지역을 '경기 고양시'처럼 시·도와 시·군·구로 받습니다.
+  const [sidoName, areaName] = isCenter ? f.region.split(' ') : [];
+  const areas = SIDO.find((x) => x.name === sidoName)?.areas || [];
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -84,7 +88,7 @@ const RegisterForm = ({ onDone }: { onDone: () => void }) => {
         </div>
         <div className="field">
           <label htmlFor="r-type">기관 유형</label>
-          <select id="r-type" name="org_type" value={f.org_type} onChange={set}>
+          <select id="r-type" name="org_type" value={f.org_type} onChange={(e) => setF((p) => ({ ...p, org_type: e.target.value, region: '' }))}>
             <option value="">선택</option>
             {ORG_TYPES.map((t) => (
               <option key={t}>{t}</option>
@@ -92,13 +96,42 @@ const RegisterForm = ({ onDone }: { onDone: () => void }) => {
           </select>
         </div>
         <div className="field">
-          <label htmlFor="r-region">지역</label>
-          <select id="r-region" name="region" value={f.region} onChange={set}>
-            <option value="">선택</option>
-            {PROGRAM_REGIONS.map((r) => (
-              <option key={r}>{r}</option>
-            ))}
-          </select>
+          <label htmlFor="r-region">지역{isCenter && ' *'}</label>
+          {isCenter ? (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select
+                id="r-region"
+                aria-label="시·도"
+                value={sidoName || ''}
+                required
+                onChange={(e) => {
+                  const sd = SIDO.find((x) => x.name === e.target.value);
+                  setF((p) => ({ ...p, region: sd ? `${sd.name} ${sd.areas[0][1]}` : '' }));
+                }}
+              >
+                <option value="">시·도</option>
+                {SIDO.map((x) => (
+                  <option key={x.name}>{x.name}</option>
+                ))}
+              </select>
+              {sidoName && (
+                <select aria-label="시·군·구" value={areaName} onChange={(e) => setF((p) => ({ ...p, region: `${sidoName} ${e.target.value}` }))}>
+                  {areas.map(([code, name]) => (
+                    <option key={code} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          ) : (
+            <select id="r-region" name="region" value={f.region} onChange={set}>
+              <option value="">선택</option>
+              {PROGRAM_REGIONS.map((r) => (
+                <option key={r}>{r}</option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="field">
           <label htmlFor="r-manager">담당자 이름 *</label>

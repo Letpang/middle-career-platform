@@ -136,7 +136,16 @@ export const fetchJobDetail = (id: string) => get<JobDetail>(`/api/jobs/${encode
 // 교육과정 · 채용행사 (공개)
 export const fetchPrograms = (kind: ProgramKind) => get<{ items: Program[] }>(`/api/programs?kind=${kind}`);
 
-// 상담 신청
+// 상담 신청 (센터는 전국 승인된 중장년내일센터 계정)
+export interface CounselCenter {
+  id: number;
+  name: string;
+  region: string;
+  slug: string | null;
+  phone: string | null;
+  address: string | null;
+}
+export const fetchCounselCenters = () => get<{ items: CounselCenter[] }>('/api/counsel-centers');
 export const submitCounseling = (body: Record<string, unknown>) => post<{ ok: true }>('/api/counseling', body);
 
 // 중장년내일센터 홈페이지
@@ -178,7 +187,7 @@ export interface CenterSummary {
 }
 export const fetchCenters = () => get<{ items: CenterSummary[] }>('/api/centers');
 export const fetchCenter = (slug: string) =>
-  get<{ center: CenterPage & { name: string; homepage: string; updated_at: string }; programs: Program[]; posts: CenterPost[] }>(`/api/centers/${encodeURIComponent(slug)}`);
+  get<{ center: CenterPage & { org_id: number; name: string; homepage: string; updated_at: string }; programs: Program[]; posts: CenterPost[] }>(`/api/centers/${encodeURIComponent(slug)}`);
 
 // 방문자 수 · AI
 export const fetchVisit = () => get<{ count: number | null }>('/api/visit');
