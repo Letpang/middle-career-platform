@@ -4,6 +4,7 @@
 import { listJobs, listRegionJobs, getJobDetail, Work24Error } from './work24';
 import { hashPassword, verifyPassword, verifyAdminPassword, createSession, getSession, destroySession } from './auth';
 import { findRegion } from '../src/data/regions';
+import { WorkerMailer } from 'worker-mailer';
 
 export interface Env {
   DB: D1Database;
@@ -12,9 +13,9 @@ export interface Env {
   WORK24_API_KEY?: string;
   ADMIN_PASSWORD?: string;
   GOOGLE_API_KEY?: string;
-  // 상담 신청 알림 메일. Cloudflare Email Sending 에 등록한 도메인의 주소(MAIL_FROM)가 있어야 보냅니다.
-  EMAIL?: SendEmail;
-  MAIL_FROM?: string;
+  // 상담 신청 알림 메일을 보낼 Gmail 계정과 앱 비밀번호 (wrangler secret put 으로 넣음)
+  GMAIL_USER?: string;
+  GMAIL_APP_PASSWORD?: string;
 }
 
 class HttpError extends Error {
@@ -510,7 +511,7 @@ const CENTERS = ['고양', '파주'] as const;
 
 // 상담 신청이 들어오면 그 지역 중장년내일센터 계정의 이메일로 알립니다. 실패해도 신청은 저장됩니다.
 async function notifyCenter(env: Env, r: Record<string, string>) {
-  if (!env.EMAIL || !env.MAIL_FROM) return;
+  if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) return;
   const { results } = await env.DB.prepare(
     `SELECT name, email FROM orgs WHERE org_type = ? AND status = 'approved' AND region = ? AND email <> ''`,
   )
@@ -531,17 +532,19 @@ async function notifyCenter(env: Env, r: Record<string, string>) {
   ]
     .filter((l) => l !== '')
     .join('\n');
-  for (const org of results) {
-    try {
-      await env.EMAIL.send({
-        to: org.email,
-        from: { email: env.MAIL_FROM, name: '커리어 브릿지' },
+  if (!results.length) return;
+  try {
+    await WorkerMailer.send(
+      { host: 'smtp.gmail.com', port: 465, secure: true, authType: 'plain', credentials: { username: env.GMAIL_USER, password: env.GMAIL_APP_PASSWORD } },
+      {
+        from: { name: '커리어 브릿지', email: env.GMAIL_USER },
+        to: results.map((o) => ({ name: o.name, email: o.email })),
         subject: `[커리어 브릿지] 새 상담 신청 - ${r.name}님 (${r.method})`,
         text,
-      });
-    } catch (e) {
-      console.error('상담 신청 알림 메일 실패', org.email, e);
-    }
+      },
+    );
+  } catch (e) {
+    console.error('상담 신청 알림 메일 실패', e);
   }
 }
 

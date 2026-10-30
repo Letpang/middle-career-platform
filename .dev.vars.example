@@ -3,3 +3,6 @@ WORK24_API_KEY=고용24_오픈API_인증키
 ADMIN_PASSWORD=로컬에서_쓸_관리자_비밀번호
 # AI 질문창 (기존 사이트와 같은 Google Gemini 키). 없으면 Cloudflare Workers AI를 씁니다.
 GOOGLE_API_KEY=구글_Gemini_API_키
+# 상담 신청 알림 메일을 보낼 Gmail 주소와 앱 비밀번호(구글 계정 > 보안 > 앱 비밀번호). 없으면 메일 없이 신청만 저장됩니다.
+GMAIL_USER=보내는_gmail_주소
+GMAIL_APP_PASSWORD=구글_앱_비밀번호_16자리
