@@ -3,6 +3,7 @@ import { LogOut, Plus, Pencil, Trash2, Clock, Ban, School, Eye, EyeOff } from 'l
 import { orgApi, ApiError, type Org, type Program } from '../api';
 import { ORG_TYPES, PROGRAM_REGIONS } from '../data/programs';
 import { SIDO } from '../data/regions';
+import { NATIONAL_CENTERS, centerRegion } from '../data/centers';
 import ProgramForm, { emptyDraft, type ProgramDraft } from '../components/ProgramForm';
 import CenterEditor from '../components/CenterEditor';
 import { formatRange, programStatus } from '../components/ProgramCard';
@@ -84,11 +85,35 @@ const RegisterForm = ({ onDone }: { onDone: () => void }) => {
       <div className="form-grid">
         <div className="field full">
           <label htmlFor="r-name">기관명 *</label>
-          <input id="r-name" name="name" value={f.name} onChange={set} required maxLength={80} placeholder="예: ○○대학교 평생교육원" />
+          {isCenter ? (
+            // 중장년내일센터는 전국 28개소 명단에서 고릅니다. 고르면 지역도 채워집니다.
+            <select
+              id="r-name"
+              value={f.name}
+              required
+              onChange={(e) => {
+                const c = NATIONAL_CENTERS.find((x) => x.name === e.target.value);
+                setF((p) => ({ ...p, name: e.target.value, region: c ? centerRegion(c) : '' }));
+              }}
+            >
+              <option value="">센터를 골라 주세요</option>
+              {Array.from(new Set(NATIONAL_CENTERS.map((c) => c.sido))).map((sd) => (
+                <optgroup key={sd} label={sd}>
+                  {NATIONAL_CENTERS.filter((c) => c.sido === sd).map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          ) : (
+            <input id="r-name" name="name" value={f.name} onChange={set} required maxLength={80} placeholder="예: ○○대학교 평생교육원" />
+          )}
         </div>
         <div className="field">
           <label htmlFor="r-type">기관 유형</label>
-          <select id="r-type" name="org_type" value={f.org_type} onChange={(e) => setF((p) => ({ ...p, org_type: e.target.value, region: '' }))}>
+          <select id="r-type" name="org_type" value={f.org_type} onChange={(e) => setF((p) => ({ ...p, org_type: e.target.value, region: '', name: e.target.value === '중장년내일센터' || isCenter ? '' : p.name }))}>
             <option value="">선택</option>
             {ORG_TYPES.map((t) => (
               <option key={t}>{t}</option>

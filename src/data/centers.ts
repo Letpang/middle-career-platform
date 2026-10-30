@@ -3,6 +3,8 @@
 // 상담 신청 화면에서 아직 계정이 없는 센터도 고를 수 있게 씁니다. 계정이 있으면 그 계정이 대신 나옵니다.
 // sido 는 regions.ts 의 시·도 이름에 맞춥니다 (광주·전남 → 전남광주).
 
+import { SIDO } from './regions';
+
 export interface NationalCenter {
   sido: string;
   name: string;
@@ -41,3 +43,10 @@ export const NATIONAL_CENTERS: NationalCenter[] = [
   { sido: '충남', name: '충남북부상공회의소 중장년내일센터', operator: '충남북부상공회의소', address: '충남 아산시 배방읍 배방로 22, 삼영빌딩 5층', phone: '041-559-5766' },
   { sido: '충남', name: '충남경제진흥원 중장년내일센터', operator: '충남경제진흥원', address: '충남 예산군 삽교읍 의향로 359, 서산고용센터', phone: '041-661-5657' },
 ];
+
+// 센터 주소에서 지역 값('경기 고양시')을 찾습니다. 기관 계정 신청 때 지역 칸을 미리 채웁니다.
+export function centerRegion(c: NationalCenter): string {
+  const sido = SIDO.find((x) => x.name === c.sido);
+  const area = sido?.areas.filter(([, name]) => c.address.includes(` ${name}`)).sort((a, b) => b[1].length - a[1].length)[0];
+  return sido && area ? `${sido.name} ${area[1]}` : '';
+}
