@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from '
 import { CircleCheck, MessageCircle, Phone, PhoneCall, Users, Send, ChevronDown, Info, TriangleAlert } from 'lucide-react';
 import type { Navigate } from '../App';
 import { fetchCounselCenters, submitCounseling, type CounselCenter } from '../api';
-import { CENTERS } from '../data/links';
-import { findRegion } from '../data/regions';
+import { NATIONAL_CENTERS, type NationalCenter } from '../data/centers';
+import { findRegion, SIDO } from '../data/regions';
 import { loadProfile, profileSummary } from '../lib/profile';
 
 const TOPICS = ['이력서 · 자기소개서 클리닉', '면접 준비', '진로 · 재취업 방향 설계', '생애경력설계·재도약', '창업 상담', '디지털 역량 상담', '기타 고민 상담'];
@@ -31,26 +31,32 @@ interface CenterOption {
   address: string;
 }
 
-// 승인된 센터 계정(전국) + 아직 계정이 없는 고양·파주 기본 안내
+// 계정 이름(예: '고양상공회의소')이 전국 목록의 어느 센터인지
+const sameCenter = (orgName: string, n: NationalCenter) =>
+  (!!n.operator && orgName.includes(n.operator)) || orgName.includes(n.name) || n.name.includes(orgName);
+
+// 승인된 센터 계정(전국) + 아직 계정이 없는 전국 중장년내일센터 (고용24 목록)
 function centerOptions(registered: CounselCenter[]): CenterOption[] {
-  const known = (name: string) => CENTERS.find((s) => name.includes(s.region));
+  const known = (name: string) => NATIONAL_CENTERS.find((n) => sameCenter(name, n));
   const fromOrgs = registered.map((c) => ({
     key: `org:${c.id}`,
     id: c.id,
-    name: c.name,
-    group: findRegion(c.region)?.sido.name || (known(c.name) ? '경기' : '기타'),
+    name: known(c.name)?.name || c.name,
+    group: findRegion(c.region)?.sido.name || known(c.name)?.sido || '기타',
     phone: c.phone || known(c.name)?.phone || '',
     address: c.address || known(c.name)?.address || '',
   }));
-  const fallback = CENTERS.filter((s) => !registered.some((c) => c.name.includes(s.region))).map((s) => ({
-    key: `static:${s.region}`,
+  const fallback = NATIONAL_CENTERS.filter((n) => !registered.some((c) => sameCenter(c.name, n))).map((n) => ({
+    key: `static:${n.name}`,
     id: null,
-    name: s.centerName,
-    group: '경기',
-    phone: s.phone,
-    address: s.address,
+    name: n.name,
+    group: n.sido,
+    phone: n.phone,
+    address: n.address,
   }));
-  return [...fromOrgs, ...fallback].sort((a, b) => a.group.localeCompare(b.group, 'ko') || a.name.localeCompare(b.name, 'ko'));
+  // 시·도는 regions.ts 순서(서울·부산·…·제주), 같은 시·도 안에서는 이름 순
+  const order = (g: string) => (SIDO.findIndex((x) => x.name === g) + 1 || 99);
+  return [...fromOrgs, ...fallback].sort((a, b) => order(a.group) - order(b.group) || a.name.localeCompare(b.name, 'ko'));
 }
 
 const Counseling = ({ navigate }: { navigate: Navigate }) => {
