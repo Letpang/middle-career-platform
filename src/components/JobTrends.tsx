@@ -1,30 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { ArrowRight } from 'lucide-react';
 import type { Navigate } from '../App';
 import type { Job } from '../api';
+import type { Region } from '../data/regions';
 import { classifyJob, countBy, jobArea, JOB_FILTERS, matchesQuery, OTHER_CATEGORY, SENIOR_KEYWORDS } from '../data/jobs';
-
-export const TREND_REGIONS = ['고양', '파주', '김포'] as const;
 
 type Item = { label: string; count: number; query: Record<string, string> };
 
 // 메인 "지금 많이 찾는 일자리": 지역 공고를 직종·동네·조건·검색어로 묶어, 누르면 그 조건의 일자리 목록으로 바로 갑니다.
-const JobTrends = ({
-  data,
-  error,
-  initialRegion,
-  navigate,
-}: {
-  data: Record<string, Job[]> | null;
-  error?: boolean;
-  initialRegion: string;
-  navigate: Navigate;
-}) => {
-  const [region, setRegion] = useState(initialRegion);
-  const jobs = data?.[region] || [];
+const JobTrends = ({ data, error, region: r, navigate }: { data: Job[] | null; error?: boolean; region: Region; navigate: Navigate }) => {
+  const region = r.name;
 
   const columns = useMemo(() => {
-    const base = { region };
+    const jobs = data || [];
+    const base = { region: r.key };
     const cats: Item[] = countBy(jobs, (j) => classifyJob(j.title))
       .filter((c) => c.name !== OTHER_CATEGORY)
       .slice(0, 7)
@@ -47,7 +36,7 @@ const JobTrends = ({
       { title: '조건으로 찾기', items: conds },
       { title: '중장년이 많이 찾는 검색어', items: words },
     ].filter((c) => c.items.length > 0);
-  }, [jobs, region]);
+  }, [data, r.key]);
 
   return (
     <section style={{ padding: '20px 0 60px' }}>
@@ -55,15 +44,10 @@ const JobTrends = ({
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <h2 className="section-title">지금 많이 찾는 일자리</h2>
           <p className="section-desc" style={{ marginBottom: '20px' }}>
-            고용24에 올라온 우리 지역 공고를 한눈에 나눠 봤어요. 누르면 해당 공고만 바로 보여 드려요.
+            고용24에 올라온 {r.key} 공고{data && ` ${data.length.toLocaleString()}건`}을 한눈에 나눠 봤어요. 누르면 해당 공고만 바로 보여 드려요.
+            <br />
+            지역은 맨 위 <strong>지역 버튼</strong>에서 바꿀 수 있어요.
           </p>
-          <div className="filter-row" style={{ justifyContent: 'center' }}>
-            {TREND_REGIONS.map((r) => (
-              <button key={r} className={`filter-btn ${region === r ? 'active' : ''}`} onClick={() => setRegion(r)}>
-                {r} {data?.[r] && <span style={{ opacity: 0.75 }}>{data[r].length.toLocaleString()}</span>}
-              </button>
-            ))}
-          </div>
         </div>
 
         {error ? (
@@ -93,7 +77,7 @@ const JobTrends = ({
         )}
 
         <div style={{ textAlign: 'center', marginTop: '28px' }}>
-          <button className="btn btn-secondary" onClick={() => navigate('jobs', { region })}>
+          <button className="btn btn-secondary" onClick={() => navigate('jobs', { region: r.key })}>
             {region} 일자리 모두 보기 <ArrowRight size={18} />
           </button>
         </div>

@@ -738,6 +738,69 @@
   color: var(--text-muted);
 }
 
+/* 상단 "우리 지역" 설정 */
+.navbar-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.region-picker {
+  position: relative;
+}
+
+.region-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background-color: var(--primary-light);
+  color: var(--primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.region-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 200;
+  width: min(340px, calc(100vw - 32px));
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+}
+
+.region-pop-title {
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.region-pop-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.region-pop select {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.region-areas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .hero {
@@ -797,5 +860,26 @@
   .font-size-btn {
     width: 24px;
     height: 24px;
+  }
+  /* 홈 메뉴가 있으니 로고는 빼고, 지역 버튼이 들어갈 자리를 만듭니다 */
+  .logo {
+    display: none !important;
+  }
+  .navbar-tools {
+    gap: 4px;
+  }
+  .region-btn {
+    padding: 6px;
+    font-size: 0.8rem;
+  }
+  .region-btn svg:last-child {
+    display: none;
+  }
+  .region-pop {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    top: 68px;
+    width: auto;
   }
 }
