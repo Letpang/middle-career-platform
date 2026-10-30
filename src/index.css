@@ -1,27 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
 
 :root {
-  --font-sans: 'Outfit', 'Noto Sans KR', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   
-  /* Harmonious Light Palette */
-  --bg-primary: #f8fafc;
+  /* 공공 취업지원 사이트처럼 믿음직한 남색·파랑에, 눈에 띄어야 할 곳만 주황 */
+  --bg-primary: #f4f6f9;
   --bg-secondary: #ffffff;
-  --bg-tertiary: #f1f5f9;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --bg-tertiary: #eef1f5;
+  --text-primary: #18202e;
+  --text-secondary: #4a5566;
+  --text-muted: #8a94a3;
   
-  --primary: #4f46e5;
-  --primary-hover: #4338ca;
-  --primary-light: #e0e7ff;
+  --primary: #1a56c4;
+  --primary-hover: #12449f;
+  --primary-light: #e7effb;
+  --primary-deep: #0f2f66;
   
-  --secondary: #0ea5e9;
-  --secondary-hover: #0284c7;
+  --secondary: #0d7f78;
+  --secondary-hover: #0a6862;
   
-  --accent: #f59e0b;
-  --accent-light: #fef3c7;
+  --accent: #e8661c;
+  --accent-hover: #cf5612;
+  --accent-light: #fdeee3;
   
-  --border-color: #e2e8f0;
+  --border-color: #dfe4eb;
   --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   --card-shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   
@@ -44,12 +46,17 @@
     --text-secondary: #cbd5e1;
     --text-muted: #64748b;
     
-    --primary: #6366f1;
-    --primary-hover: #4f46e5;
-    --primary-light: rgba(99, 102, 241, 0.15);
+    --primary: #5b8ff0;
+    --primary-hover: #7aa5f3;
+    --primary-light: rgba(91, 143, 240, 0.15);
+    --primary-deep: #0c1f44;
     
-    --secondary: #38bdf8;
-    --secondary-hover: #0ea5e9;
+    --secondary: #3cc4b9;
+    --secondary-hover: #5fd3ca;
+
+    --accent: #f08440;
+    --accent-hover: #f39a62;
+    --accent-light: rgba(240, 132, 64, 0.15);
     
     --border-color: #1f2937;
     --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);

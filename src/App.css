@@ -25,10 +25,8 @@
   gap: 8px;
   font-size: 1.3rem;
   font-weight: 700;
-  color: var(--primary);
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--primary-deep);
+  letter-spacing: -0.02em;
 }
 
 .logo-icon {
@@ -70,15 +68,16 @@
   position: relative;
   padding: 80px 0;
   text-align: center;
-  background: radial-gradient(circle at top, var(--primary-light) 0%, transparent 60%);
+  background-color: var(--primary-deep);
+  color: #ffffff;
   overflow: hidden;
 }
 
 .hero-tag {
   display: inline-block;
   padding: 6px 14px;
-  background-color: var(--primary-light);
-  color: var(--primary);
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
   border-radius: 9999px;
   font-size: 0.85rem;
   font-weight: 600;
@@ -92,18 +91,16 @@
   line-height: 1.2;
   letter-spacing: -0.02em;
   margin-bottom: 20px;
-  color: var(--text-primary);
+  color: #ffffff;
 }
 
 .hero h1 span {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #ffb27a;
 }
 
 .hero-subtitle {
   font-size: clamp(1.05rem, 0.95rem + 0.5vw, 1.25rem);
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.82);
   max-width: 600px;
   margin: 0 auto 36px;
 }
@@ -124,13 +121,12 @@
 .btn-primary {
   background-color: var(--primary);
   color: #ffffff;
-  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 2px 6px rgba(26, 86, 196, 0.25);
 }
 
 .btn-primary:hover {
   background-color: var(--primary-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 14px rgba(79, 70, 229, 0.4);
+  box-shadow: 0 4px 10px rgba(26, 86, 196, 0.3);
 }
 
 .btn-secondary {
@@ -142,7 +138,38 @@
 .btn-secondary:hover {
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
-  transform: translateY(-2px);
+}
+
+/* 남색 띠 위의 버튼: 가장 중요한 버튼은 주황, 나머지는 흰 테두리 */
+.hero .btn-primary {
+  background-color: var(--accent);
+  box-shadow: none;
+}
+
+.hero .btn-primary:hover {
+  background-color: var(--accent-hover);
+}
+
+.hero .btn-secondary {
+  background-color: transparent;
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #ffffff;
+}
+
+.hero .btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+/* 핵심 제공 서비스: 넓은 화면 4칸, 중간 2칸, 폰 1칸 */
+.grid.services-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .grid.services-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* Feature Grid & Cards */
@@ -169,8 +196,8 @@
 .card {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 30px;
+  border-radius: 12px;
+  padding: 28px;
   box-shadow: var(--card-shadow);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
@@ -179,9 +206,8 @@
 }
 
 .card:hover {
-  transform: translateY(-6px);
   box-shadow: var(--card-shadow-hover);
-  border-color: rgba(99, 102, 241, 0.2);
+  border-color: rgba(26, 86, 196, 0.3);
 }
 
 .card-icon-container {
@@ -277,7 +303,7 @@
 }
 
 .badge-secondary {
-  background-color: rgba(14, 165, 233, 0.1);
+  background-color: rgba(13, 127, 120, 0.1);
   color: var(--secondary);
 }
 
@@ -799,6 +825,45 @@
   gap: 6px;
   max-height: 240px;
   overflow-y: auto;
+}
+
+/* 일자리 페이지 맨 위 지역 고르기 */
+.region-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px 16px;
+  max-width: 640px;
+  margin: 24px auto 0;
+  padding: 16px 20px;
+  border: 2px solid var(--primary);
+  border-radius: 12px;
+  background-color: var(--primary-light);
+}
+
+.region-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.region-bar-selects {
+  display: flex;
+  gap: 8px;
+}
+
+.region-bar select {
+  padding: 10px 14px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 /* Responsive adjustments */
